@@ -1,12 +1,21 @@
 use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use rusqlite_migration::{Migrations, M};
 
 mod db;
+mod stream;
 
-pub struct Stream {}
+pub struct Stream {
+    started: Instant,
+    viewers: u32,
+}
+
+pub struct PacketSplitter {
+
+}
 
 pub struct AppState {
     db: db::Connection,
