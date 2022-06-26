@@ -3,25 +3,23 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use axum::{Extension, Router};
 use rusqlite_migration::{Migrations, M};
 
 mod db;
 mod stream;
 
-pub struct Stream {
-    started: Instant,
-    viewers: u32,
-}
-
-pub struct PacketSplitter {
-
-}
-
-pub struct AppState {
-    db: db::Connection,
-}
+pub type Connection = tokio_rusqlite::Connection;
 
 const MIGRATIONS: [M; 1] = [M::up(include_str!("../migrations/0001_initial.sql"))];
+
+pub fn api_route(db: tokio_rusqlite::Connection) -> Router {
+    Router::new()
+        .nest("/api/streams/", stream::api_route())
+        // .route("/api/streams/:stream", get(stream::get_streams))
+        // .route("/api/streams/:stream/snapshot", get())
+        .layer(Extension(db))
+}
 
 async fn run() {
     let db_path: PathBuf = env::var("DB_PATH").expect("DB_PATH not set").into();
@@ -31,10 +29,10 @@ async fn run() {
         .parse()
         .expect("BIND_ADDRESS could not be parsed");
 
-    let conn = db::Connection::open(&db_path).expect("Failed to open database");
+    let conn = tokio_rusqlite::Connection::open(&db_path).await.expect("Failed to open database");
 
     // apply latest migrations
-    conn.write(|mut c| {
+    conn.call(|mut c| {
         let migrations = Migrations::new(MIGRATIONS.to_vec());
         migrations
             .to_latest(&mut c)
@@ -42,8 +40,10 @@ async fn run() {
     })
     .await;
 
-    axum::Server::try_bind(&bind_addr).expect("Failed to bind server");
-    // .serve(api_route(pool).into_make_service())
+    axum::Server::try_bind(&bind_addr).expect("Failed to bind server")
+        .serve(api_route(conn).into_make_service())
+        .await
+        .unwrap();
     // .await
     // .unwrap();
 }

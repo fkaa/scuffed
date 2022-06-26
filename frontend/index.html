@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<title>Scuffed</title>
+<link rel="stylesheet" href="style.css" />
+<meta charset="utf-8">
+
+<nav>
+<h1>Scuffed</h1>
+<a href="#">Account</a>
+<a href="#">Help</a>
+</nav>
+
+<div class="a">
+<div class="b">
+
+<div id="streams">
+<h2>Streams</h2>
+
+</div>
+
+<script src="snapshot.js"></script>
+<script>
+let SELF = window.location.href;
+
+/*fetch(SELF + "/api/streams")
+    .then(res => res.json())
+    .then(data => populateStreams(data));*/
+
+function createStreamElement(stream)
+{
+    let link = document.createElement("a");
+    link.href = "#";
+    let figure = document.createElement("figure");
+    let img = document.createElement("img");
+    img.src = "placeholder.png";
+    let caption = document.createElement("figcaption");
+    caption.innerText = `${stream.name} | ${stream.viewers} viewers`;
+
+    figure.appendChild(img);
+    figure.appendChild(caption);
+
+    link.appendChild(figure);
+
+    return link;
+}
+
+function populateStreams(streams)
+{
+    console.log(streams);
+    let streamsContainer = document.getElementById("streams");
+    for (let i = 0; i < streams.length; i++) {
+        console.log(streams[i]);
+        let streamDomElement = createStreamElement(streams[i]);
+        streamsContainer.appendChild(streamDomElement);
+    }
+}
+
+let streams = [
+    { name: "tmtu", viewers: 2 },
+    { name: "dmbtu", viewers: 2 },
+    { name: "jajaja", viewers: 2 },
+    { name: "oompho", viewers: 0 },
+        ];
+populateStreams(streams);
+</script>

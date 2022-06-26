@@ -1,0 +1,60 @@
+html, body {
+    height: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+nav {
+    position: absolute;
+    width: 100%;
+}
+
+nav > * {
+    display: inline-block;
+    margin: 0.5em 1em;
+}
+
+.a {
+    display: table;
+    width: 100%;
+    height: 100%;
+}
+
+.b {
+    display: table-cell;
+    vertical-align: middle;
+}
+
+#streams {
+    width: 720px;
+    margin: auto;
+    text-align: center;
+}
+
+#streams > h2 {
+    text-align: center;
+}
+
+#streams figure {
+    display: inline-block;
+    width: 180px;
+    max-height: 300px;
+    border: 1px solid #000;
+    margin: 1em;
+    position: relative;
+    background-color: #aaa;
+    box-shadow: 3px 3px 0px 0px #000000;
+}
+
+#streams figure, img {
+    border-radius: 4px;
+}
+
+#streams figcaption {
+    position: absolute;
+    color: #fff;
+    background-color: rgba(0.2, 0.2, 0.2, 0.4);
+    bottom: 0;
+    border-radius: 0px 0px 0px 4px;
+    padding: 0.1em;
+}

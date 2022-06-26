@@ -18,3 +18,4 @@ rusqlite = "0.27.0"
 rusqlite_migration = { git = "https://github.com/cljoly/rusqlite_migration" }
 mmangle = { path = "../mmangle" }
 tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "sync", "net", "io-util"] }
+tokio-rusqlite = "0.1.0"
