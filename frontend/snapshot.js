@@ -47,17 +47,18 @@ class VideoDecoder {
         this.video.src = url;
 
         let p = new Promise(resolve => {
+            let err = false
             this.video.onpause = () => {
                 copyImage(this.canvas, this.context, this.dstWidth, this.dstHeight, this.video, this.video.videoWidth, this.video.videoHeight);
 
-                resolve(this.canvas);
+                resolve(err ? null : this.canvas);
             };
 
             // apparently this is needed to reliably get a frame that
             // can be copied to a canvas
-            this.video.play().then(() => this.video.pause());
+            this.video.play().catch(e => err = true).then(() => this.video.pause());
         });
 
-        return p.then(v => v.toDataURL());
+        return p.then(v => v?.toDataURL());
     }
 }

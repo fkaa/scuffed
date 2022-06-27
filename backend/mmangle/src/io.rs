@@ -40,6 +40,12 @@ pub struct Io {
 }
 
 impl Io {
+    pub fn null() -> Self {
+        Io {
+            writer: None,
+        }
+    }
+
     pub async fn open_file<P: AsRef<Path>>(path: P) -> Result<Self, IoError> {
         let file = File::create(path).await?;
 

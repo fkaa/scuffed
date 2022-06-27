@@ -39,6 +39,22 @@ pub struct FragmentedMp4Muxer {
 }
 
 impl FragmentedMp4Muxer {
+    pub fn with_streams(streams: &[Stream]) -> Self {
+        let mut muxer = FragmentedMp4Muxer {
+            video: None,
+            audio: None,
+            start_times: HashMap::new(),
+            prev_times: HashMap::new(),
+            track_mapping: HashMap::new(),
+            io: Io::null(),
+            seq: 0,
+        };
+
+        muxer.assign_streams(streams);
+
+        muxer
+    }
+
     pub fn new(io: Io) -> Self {
         FragmentedMp4Muxer {
             video: None,
@@ -51,7 +67,7 @@ impl FragmentedMp4Muxer {
         }
     }
 
-    fn initialization_segment(&self) -> anyhow::Result<Span> {
+    pub fn initialization_segment(&self) -> anyhow::Result<Span> {
         let mut buf = BytesMut::new();
 
         write_box!(&mut buf, b"ftyp", {
@@ -102,7 +118,7 @@ impl FragmentedMp4Muxer {
         Ok(buf.freeze().into())
     }
 
-    fn write_media_segment(&mut self, packet: Packet) -> anyhow::Result<Span> {
+    pub fn write_media_segment(&mut self, packet: Packet) -> anyhow::Result<Span> {
         let prev_time = self
             .prev_times
             .entry(packet.stream.id)
@@ -197,21 +213,8 @@ impl FragmentedMp4Muxer {
 
         Ok(segment)
     }
-}
 
-impl MuxerMetadata for FragmentedMp4Muxer {
-    fn create(io: Io) -> Self {
-        FragmentedMp4Muxer::new(io)
-    }
-
-    fn name() -> &'static str {
-        "fmp4"
-    }
-}
-
-#[async_trait]
-impl Muxer for FragmentedMp4Muxer {
-    async fn start(&mut self, streams: Vec<Stream>) -> anyhow::Result<()> {
+    fn assign_streams(&mut self, streams: &[Stream]) {
         use crate::media::MediaStreamExt;
 
         let mut track_number = 1;
@@ -231,6 +234,24 @@ impl Muxer for FragmentedMp4Muxer {
 
         debug!("Track mappings: {:?}", self.track_mapping);
 
+    }
+}
+
+impl MuxerMetadata for FragmentedMp4Muxer {
+    fn create(io: Io) -> Self {
+        FragmentedMp4Muxer::new(io)
+    }
+
+    fn name() -> &'static str {
+        "fmp4"
+    }
+}
+
+#[async_trait]
+impl Muxer for FragmentedMp4Muxer {
+    async fn start(&mut self, streams: Vec<Stream>) -> anyhow::Result<()> {
+
+        self.assign_streams(&streams);
         let init_segment = self.initialization_segment()?;
 
         self.io.write_span(init_segment).await?;

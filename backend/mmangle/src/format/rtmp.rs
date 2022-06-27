@@ -122,6 +122,13 @@ impl RtmpRequest {
         ))
     }
 
+    pub fn app(&self) -> &str {
+        &self.app
+    }
+
+    pub fn key(&self) -> &str {
+        &self.key
+    }
     pub fn addr(&self) -> SocketAddr {
         self.addr
     }

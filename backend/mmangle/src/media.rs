@@ -12,12 +12,12 @@ pub trait MediaStreamExt {
     fn audio(&self) -> Option<&Stream>;
 }
 
-impl MediaStreamExt for Vec<Stream> {
+impl<T: AsRef<[Stream]>> MediaStreamExt for T {
     fn video(&self) -> Option<&Stream> {
-        self.iter().find(|s| s.info.video().is_some())
+        self.as_ref().iter().find(|s| s.info.video().is_some())
     }
     fn audio(&self) -> Option<&Stream> {
-        self.iter().find(|s| s.info.audio().is_some())
+        self.as_ref().iter().find(|s| s.info.audio().is_some())
     }
 }
 
@@ -211,9 +211,16 @@ pub struct Stream {
     pub timebase: Fraction,
 }
 
+impl Stream {
+    pub fn is_video(&self) -> bool {
+        matches!(self.info.kind, MediaKind::Video(_))
+    }
+}
+
 /// A media packet.
 ///
 /// A packet contains timestamped opaque data for a given stream.
+#[derive(Clone)]
 pub struct Packet {
     pub time: MediaTime,
     pub key: bool,

@@ -149,6 +149,13 @@ impl Span {
         }
     }
 
+    pub fn to_byte_spans(&self) -> Vec<Bytes> {
+        match self {
+            Span::Many(spans) => spans.clone(),
+            Span::Single(span) => vec![span.clone()],
+            &Span::Static(span) => vec![span.into()],
+        }
+    }
     /// Converts the span into a [Bytes].
     pub fn to_bytes(&self) -> Bytes {
         match self {
