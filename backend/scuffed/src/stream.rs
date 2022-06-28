@@ -7,7 +7,7 @@ use axum::{
 use bytes::Bytes;
 use futures::stream::{self, Stream};
 use log::*;
-use mmangle::{
+use mediabox::{
     format::{
         mp4::FragmentedMp4Muxer,
         rtmp::{RtmpListener, RtmpRequest},
@@ -98,11 +98,11 @@ pub struct LiveStreams(pub Arc<RwLock<HashMap<String, LiveStream>>>);
 pub struct LiveStream {
     started: Instant,
     splitter: PacketSplitter,
-    snapshot: Arc<RwLock<Option<mmangle::Packet>>>,
+    snapshot: Arc<RwLock<Option<mediabox::Packet>>>,
 }
 
 impl LiveStream {
-    pub fn new(streams: Vec<mmangle::Stream>) -> Self {
+    pub fn new(streams: Vec<mediabox::Stream>) -> Self {
         LiveStream {
             started: Instant::now(),
             splitter: PacketSplitter::new(streams),
@@ -113,19 +113,19 @@ impl LiveStream {
 
 #[derive(Clone)]
 pub struct PacketSplitter {
-    targets: Arc<RwLock<Vec<Sender<mmangle::Packet>>>>,
-    streams: Vec<mmangle::Stream>,
+    targets: Arc<RwLock<Vec<Sender<mediabox::Packet>>>>,
+    streams: Vec<mediabox::Stream>,
 }
 
 impl PacketSplitter {
-    fn new(streams: Vec<mmangle::Stream>) -> Self {
+    fn new(streams: Vec<mediabox::Stream>) -> Self {
         PacketSplitter {
             targets: Arc::new(RwLock::new(Vec::new())),
             streams,
         }
     }
 
-    pub async fn write_packet(&self, packet: mmangle::Packet) {
+    pub async fn write_packet(&self, packet: mediabox::Packet) {
         let mut targets = self.targets.write().await;
 
         #[allow(clippy::needless_collect)]
@@ -206,7 +206,7 @@ pub async fn get_snapshot(
     Ok(response)
 }
 
-fn snapshot_mp4(streams: &[mmangle::Stream], packet: mmangle::Packet) -> anyhow::Result<Span> {
+fn snapshot_mp4(streams: &[mediabox::Stream], packet: mediabox::Packet) -> anyhow::Result<Span> {
     let mut fragger = FragmentedMp4Muxer::with_streams(streams);
 
     let span = [

@@ -753,6 +753,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73cbba799671b762df5a175adf59ce145165747bb891505c43d09aefbbf38beb"
 
 [[package]]
+name = "mediabox"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-trait",
+ "bytes",
+ "console-subscriber",
+ "downcast",
+ "env_logger",
+ "flvparse",
+ "futures",
+ "gcd",
+ "h264-reader",
+ "log",
+ "nom 7.1.1",
+ "rml_rtmp",
+ "test-case",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -799,29 +822,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys",
-]
-
-[[package]]
-name = "mmangle"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "assert_matches",
- "async-trait",
- "bytes",
- "console-subscriber",
- "downcast",
- "env_logger",
- "flvparse",
- "futures",
- "gcd",
- "h264-reader",
- "log",
- "nom 7.1.1",
- "rml_rtmp",
- "test-case",
- "thiserror",
- "tokio",
 ]
 
 [[package]]
@@ -1203,7 +1203,7 @@ dependencies = [
  "gcd",
  "h264-reader",
  "log",
- "mmangle",
+ "mediabox",
  "rml_rtmp",
  "rusqlite",
  "rusqlite_migration",

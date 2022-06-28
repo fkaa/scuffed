@@ -1,5 +1,5 @@
 [workspace]
 members = [
     "scuffed",
-    "mmangle",
+    "mediabox/mediabox",
 ]
