@@ -22,19 +22,27 @@ pub fn api_route(
     db: tokio_rusqlite::Connection,
     streams: stream::LiveStreams,
     serve_dir: PathBuf,
+    old_serve_dir: Option<PathBuf>,
 ) -> Router {
-    Router::new()
+    let mut router = Router::new()
         .nest("/api/streams/", stream::api_route())
         // .route("/api/streams/:stream", get(stream::get_streams))
         // .route("/api/streams/:stream/snapshot", get())
         .fallback(get_service(ServeDir::new(serve_dir)).handle_error(handle_error))
         .layer(Extension(db))
-        .layer(Extension(streams))
+        .layer(Extension(streams));
+
+    if let Some(old_dir) = old_serve_dir {
+        router = router.nest("/old/", get_service(ServeDir::new(old_dir)).handle_error(handle_error));
+    }
+
+    router
 }
 
 async fn run() {
     let db_path: PathBuf = env::var("DB_PATH").expect("DB_PATH not set").into();
 
+    let old_serve_dir: Option<PathBuf> = env::var("OLD_SERVE_DIR").map(|s| s.into()).ok();
     let serve_dir: PathBuf = env::var("SERVE_DIR").expect("SERVE_DIR not set").into();
 
     let bind_addr: SocketAddr = env::var("BIND_ADDRESS")
@@ -64,7 +72,7 @@ async fn run() {
         }
     });
 
-    let router = api_route(conn, streams, serve_dir);
+    let router = api_route(conn, streams, serve_dir, old_serve_dir);
 
     axum::Server::try_bind(&bind_addr)
         .expect("Failed to bind server")

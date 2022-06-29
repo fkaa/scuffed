@@ -4,3 +4,6 @@ tags
 *.mp4
 .env
 .bacon-locations
+/frontend/node_modules
+/frontend/dist
+.DS_Store

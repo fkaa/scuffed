@@ -1,0 +1,44 @@
+@import "./setup/";
+
+@import "./generic/";
+
+html {
+  @include font(400);
+  font-size: 63.5%;
+  position: relative;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-text));
+  // min-height: 100vh;
+
+  &:-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+
+  * {
+    // outline: none !important;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    margin-top: 0;
+  }
+
+  a {
+    text-decoration: none;
+    color: rgb(var(--color-text));
+  }
+
+  a,
+  span,
+  p,
+  b {
+    font-size: 1.6rem;
+  }
+}
+
+@import "./app/";
+
+@import "./overrides/";

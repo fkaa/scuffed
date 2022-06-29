@@ -1,0 +1,20 @@
+:root {
+  --color-bg: 247, 247, 247; /* #F7F7F7 */
+  --color-bg-accent: 232, 232, 232; /* #E8E8E8 */
+  --color-dark: 1, 0, 6; /* #010006 */
+  --color-text: 1, 0, 6; /* #010006 */
+  --color-text-light: 85, 83, 92; /* #010006 */
+  --color-text-white: 247, 247, 247; /* #F7F7F7 */
+  --color-skin: 239, 194, 166; /* #EFC2A5 */
+  --color-blue: 28, 48, 239; /* #1C30EF */
+  --color-red: 254, 63, 8; /* #FE3F08 */
+
+  --shadow: 0 2px 12px rgba(var(--color-dark), 0.2);
+}
+
+:root.dark-theme {
+  // Dark theme variable versions
+}
+
+$c: #393741;
+$c: rgb(85, 83, 92);
