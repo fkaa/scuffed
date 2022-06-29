@@ -3,3 +3,5 @@
 tags
 *.mp4
 .env
+/frontend/node_modules
+/frontend/dist

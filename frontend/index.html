@@ -1,77 +1,45 @@
 <!DOCTYPE html>
-<title>Scuffed</title>
-<link rel="stylesheet" href="style.css" />
-<meta charset="utf-8">
 
-<nav>
-<h1>Scuffed</h1>
-<a href="#">Account</a>
-<a href="#">Help</a>
-</nav>
+<html lang="en">
+  <head>
+    <link rel="icon" href="/icons/favicon.ico" />
 
-<div class="a">
-<div class="b">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
-<div id="streams"></div>
+    <!-- Meta Information -->
+    <meta property="og:type" content="website" />
+    <meta name="language" content="English" />
+    <meta name="keywords" content="livestreaming, hosting, stream, open-source, tmtu, dolanske" />
+    <meta name="author" content="@dolanske, @tmtu" />
 
-<script src="snapshot.js"></script>
-<script>
-let decoder = new VideoDecoder(180, 120);
+    <!-- Title -->
+    <title>scuffed.tv // budget streams</title>
+    <meta name="title" content="scuffed.tv // budget streams" />
+    <meta property="og:title" content="scuffed.tv // budget streams" />
+    <meta property="twitter:title" content="scuffed.tv // budget streams" />
 
-async function loadStreams() {
-    let data = await fetch("/api/streams/").then(res => res.json());
+    <!-- Description -->
+    <meta name="description" content="Scuffed.tv is a simple streaming site" />
+    <meta property="og:description" content="Scuffed.tv is a simple streaming site" />
+    <meta property="twitter:description" content="Scuffed.tv is a simple streaming site" />
 
-    await populateStreams(data);
+    <!-- Url -->
+    <meta property="twitter:url" content="https://scuffed.tv" />
+    <meta property="og:url" content="https://scuffed.tv" />
+    <meta property="og:domain" content="https://scuffed.tv" />
 
-    setTimeout(loadStreams, 5000);
-}
+    <!-- Link Image -->
 
-loadStreams();
+    <meta property="og:image" content="" />
+    <meta property="twitter:image" content="" />
 
-async function populateStreams(streams) {
-    let streamsContainer = document.getElementById("streams");
-    while (streamsContainer.lastChild) {
-        streamsContainer.removeChild(streamsContainer.lastChild);
-    }
-    let title = document.createElement("h1");
-    title.innerText = streams.length > 0 ? "Streams" : "No streams! :("
-    streamsContainer.appendChild(title);
-
-    for (let i = 0; i < streams.length; i++) {
-        let streamDomElement = createStreamElement(streams[i]);
-        streamsContainer.appendChild(streamDomElement);
-    }
-
-    let images = document.querySelectorAll(".snapshot");
-    for (let i = 0; i < images.length; i++) {
-        let img = images[i];
-        let stream = img.getAttribute("stream-id");
-
-        let snapshot = await decoder.decode(`/api/streams/${stream}/snapshot`);
-        if (snapshot) {
-            img.src = snapshot;
-        }
-    }
-}
-
-function createStreamElement(stream) {
-    let link = document.createElement("a");
-    link.setAttribute("stream-id", stream.name);
-    link.class = "stream";
-    link.href = `/${stream.name}`;
-    let figure = document.createElement("figure");
-    let img = document.createElement("img");
-    img.src = "placeholder.gif";
-    img.setAttribute("stream-id", stream.name);
-    img.classList.add("snapshot");
-    let caption = document.createElement("figcaption");
-    caption.innerText = `${stream.name} | ${stream.viewers} viewers`;
-
-    figure.appendChild(img);
-    figure.appendChild(caption);
-
-    link.appendChild(figure);
-
-    return link;
-}
-</script>
+    <!-- Link Image Large -->
+    <meta property="twitter:card" content="" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+.stream {
+  @include flex($gap: 0, $justify: flex-start);
+  width: 100%;
+  height: 100vh;
+
+  .stream-video {
+    @include flex($gap: 0, $justify: center, $align: center, $direction: column);
+    background-color: rgb(var(--color-bg));
+    height: 100%;
+    // width: 100%;
+    flex: 1;
+
+    h2 {
+      @include font(700);
+      font-size: 8rem;
+    }
+
+    img {
+      margin-bottom: 64px;
+    }
+  }
+
+  .stream-controls {
+    display: block;
+    width: 104px;
+    height: 100%;
+  }
+}
