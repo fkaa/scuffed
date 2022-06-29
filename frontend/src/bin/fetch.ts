@@ -73,7 +73,7 @@ async function _handleFetch(url: string, options: object) {
   // const token = localStorage.getItem("bearer_token")
 
   merge(options, {
-    // mode: "cors"
+    mode: "cors"
     // headers: {
     //   Authorization: `Bearer ${token}`
     // }
