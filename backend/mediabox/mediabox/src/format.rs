@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use crate::{io::Io, Packet, Stream};
 
 pub mod mp4;
+pub mod mkv;
 pub mod rtmp;
 
 pub trait MuxerMetadata {
@@ -25,5 +26,13 @@ pub trait Muxer {
 
     /// Stops the muxer. This will flush any buffered packets and finalize the output if
     /// appropriate.
+    async fn stop(&mut self) -> anyhow::Result<()>;
+}
+
+
+#[async_trait]
+pub trait Demuxer {
+    async fn start(&mut self) -> anyhow::Result<Vec<Stream>>;
+    async fn read(&mut self) -> anyhow::Result<Packet>;
     async fn stop(&mut self) -> anyhow::Result<()>;
 }

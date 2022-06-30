@@ -1,7 +1,7 @@
-use mmangle::format::mp4::*;
-use mmangle::format::rtmp::*;
-use mmangle::format::*;
-use mmangle::io::*;
+use mediabox::format::mp4::*;
+use mediabox::format::rtmp::*;
+use mediabox::format::*;
+use mediabox::io::*;
 
 #[tokio::main]
 async fn main() {
