@@ -1,13 +1,13 @@
 use tokio::{
     fs::File,
-    io::{AsyncSeek, AsyncWrite},
+    io::{BufReader, AsyncSeek, AsyncRead, AsyncWrite},
 };
 
 use downcast::{downcast, Any};
 
 use std::{io::SeekFrom, path::Path};
 
-use crate::Span;
+use crate::{Packet, Stream, Span};
 
 pub trait WriteSeek: Any + AsyncWrite + AsyncSeek + Unpin + Sync + Send + 'static {}
 pub trait Write: Any + AsyncWrite + Unpin + Sync + Send {}
@@ -23,8 +23,25 @@ pub enum Writer {
     Stream(Box<dyn Write>),
 }
 
+pub trait ReadSeek: Any + AsyncRead + AsyncSeek + Unpin + Sync + Send + 'static {}
+pub trait Read: Any + AsyncRead + Unpin + Sync + Send {}
+
+downcast!(dyn ReadSeek);
+downcast!(dyn Read);
+
+impl<T> ReadSeek for T where T: AsyncRead + AsyncSeek + Unpin + Sync + Send + 'static {}
+impl<T> Read for T where T: AsyncRead + Unpin + Sync + Send + 'static {}
+
+pub enum Reader {
+    Seekable(BufReader<Box<dyn ReadSeek>>),
+    Stream(BufReader<Box<dyn Read>>),
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum IoError {
+    #[error("Stream is not readable")]
+    NotReadable,
+
     #[error("Stream is not writeable")]
     NotWriteable,
 
@@ -37,12 +54,14 @@ pub enum IoError {
 
 pub struct Io {
     writer: Option<Writer>,
+    reader: Option<Reader>,
 }
 
 impl Io {
     pub fn null() -> Self {
         Io {
             writer: None,
+            reader: None,
         }
     }
 
@@ -51,11 +70,21 @@ impl Io {
 
         Ok(Io {
             writer: Some(Writer::Seekable(Box::new(file))),
+            reader: None,
         })
     }
+
     pub fn from_stream(writer: Box<dyn Write>) -> Self {
         Io {
             writer: Some(Writer::Stream(writer)),
+            reader: None,
+        }
+    }
+
+    pub fn from_reader(reader: Box<dyn Read>) -> Self {
+        Io {
+            writer: None,
+            reader: Some(Reader::Stream(BufReader::new(reader))),
         }
     }
 
@@ -91,6 +120,28 @@ impl Io {
             Writer::Seekable(writer) => writer.write_all(bytes).await?,
             Writer::Stream(writer) => writer.write_all(bytes).await?,
         }
+
+        Ok(())
+    }
+
+    pub fn reader(&mut self) -> Result<&mut (dyn AsyncRead + Unpin + Send + Sync), IoError> {
+        let reader = self.reader.as_mut().ok_or(IoError::NotWriteable)?;
+
+        match reader {
+            Reader::Seekable(reader) => Ok(reader),
+            Reader::Stream(reader) => Ok(reader),
+        }
+    }
+
+    pub async fn skip(&mut self, amt: u64) -> Result<(), IoError> {
+        use tokio::io::{self, AsyncReadExt, AsyncSeekExt};
+        
+        let reader = self.reader.as_mut().ok_or(IoError::NotWriteable)?;
+
+        match reader {
+            Reader::Seekable(reader) => reader.seek(SeekFrom::Current(amt as i64)).await?,
+            Reader::Stream(reader) => io::copy(&mut reader.take(amt), &mut io::sink()).await?,
+        };
 
         Ok(())
     }
