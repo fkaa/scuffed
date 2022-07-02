@@ -1,7 +1,10 @@
 use async_trait::async_trait;
+use h264_reader::avcc::AvcDecoderConfigurationRecord;
 use log::*;
 
-use crate::{Stream, Packet, format::{Demuxer}, io::{Io}};
+use std::sync::Arc;
+
+use crate::{codec::nal::get_codec_from_mp4, format::Demuxer, io::Io, MediaTime, Packet, Stream, SoundType, AudioCodec, MediaInfo, MediaKind, AudioInfo, Fraction, AacCodec};
 
 macro_rules! ebml {
     ($io:expr, $size:expr, $( $pat:pat_param => $blk:block ),* ) => {
@@ -26,6 +29,9 @@ macro_rules! ebml {
     }
 }
 
+fn mand<T>(value: Option<T>, id: u32) -> Result<T, MkvError> {
+    value.ok_or(MkvError::MissingElement(id))
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum MkvError {
@@ -55,6 +61,10 @@ pub enum MkvError {
 
     #[error("{0}")]
     StdIo(#[from] std::io::Error),
+
+    // lazy
+    #[error("{0}")]
+    Misc(#[from] anyhow::Error),
 }
 
 const EBML_HEADER: u32 = 0x1a45dfa3;
@@ -66,6 +76,10 @@ const SEEK_HEAD: u32 = 0x114d9b74;
 const SEEK: u32 = 0x4dbb;
 const SEEK_ID: u32 = 0x53ab;
 const SEEK_POSITION: u32 = 0x53ac;
+const INFO: u32 = 0x1549a966;
+const TIMESTAMP_SCALE: u32 = 0x2ad7b1;
+const DURATION: u32 = 0x4489;
+const DATE_UTC: u32 = 0x4461;
 const TRACKS: u32 = 0x1654ae6b;
 const TRACK_ENTRY: u32 = 0xae;
 const TRACK_NUMBER: u32 = 0xd7;
@@ -77,6 +91,10 @@ const VIDEO: u32 = 0xe0;
 const AUDIO: u32 = 0xe1;
 const SAMPLING_FREQUENCY: u32 = 0xb5;
 const CHANNELS: u32 = 0x9f;
+const BIT_DEPTH: u32 = 0x6264;
+const CLUSTER: u32 = 0x1f43b675;
+const TIMESTAMP: u32 = 0xe7;
+const SIMPLE_BLOCK: u32 = 0xa3;
 
 async fn vbin(io: &mut Io, size: u64) -> Result<Vec<u8>, MkvError> {
     let mut data = vec![0u8; size as usize];
@@ -84,6 +102,14 @@ async fn vbin(io: &mut Io, size: u64) -> Result<Vec<u8>, MkvError> {
     io.read_exact(&mut data).await?;
 
     Ok(data)
+}
+
+async fn be16(io: &mut Io) -> Result<i16, MkvError> {
+    let mut data = [0u8; 2];
+
+    io.read_exact(&mut data).await?;
+
+    Ok(i16::from_be_bytes(data))
 }
 
 async fn vstr(io: &mut Io, size: u64) -> Result<String, MkvError> {
@@ -103,7 +129,7 @@ async fn vfloat(io: &mut Io, size: u64) -> Result<f64, MkvError> {
             io.read_exact(&mut data[..4]).await?;
 
             f32::from_be_bytes(data[..4].try_into().unwrap()) as f64
-        },
+        }
         8 => {
             io.read_exact(&mut data[..8]).await?;
 
@@ -147,7 +173,9 @@ async fn vint(io: &mut Io) -> Result<(u8, u64), MkvError> {
 
     let mut bytes = [0u8; 7];
     if extra_bytes > 0 {
-        reader.read_exact(&mut bytes[..extra_bytes as usize]).await?;
+        reader
+            .read_exact(&mut bytes[..extra_bytes as usize])
+            .await?;
     }
 
     let mut value = byte as u64 & ((1 << (8 - len)) - 1) as u64;
@@ -175,7 +203,9 @@ async fn vid(io: &mut Io) -> Result<(u8, u32), MkvError> {
 
     let mut bytes = [0u8; 3];
     if extra_bytes > 0 {
-        reader.read_exact(&mut bytes[..extra_bytes as usize]).await?;
+        reader
+            .read_exact(&mut bytes[..extra_bytes as usize])
+            .await?;
     }
 
     let mut value = byte as u32;
@@ -190,13 +220,14 @@ async fn vid(io: &mut Io) -> Result<(u8, u32), MkvError> {
 
 pub struct MatroskaDemuxer {
     io: Io,
+    streams: Vec<Stream>,
+    timebase: Fraction,
+    current_cluster_ts: u64,
 }
 
 impl MatroskaDemuxer {
     pub fn new(io: Io) -> Self {
-        MatroskaDemuxer {
-            io
-        }
+        MatroskaDemuxer { io, streams: Vec::new(), timebase: Fraction::new(1, 1), current_cluster_ts: 0 }
     }
 
     async fn parse_ebml_header(&mut self) -> Result<(), MkvError> {
@@ -237,6 +268,9 @@ impl MatroskaDemuxer {
         }
 
         ebml!(&mut self.io, size,
+            (self::INFO, size) => {
+                self.parse_segment_info(size).await?;
+            },
             (self::TRACKS, size) => {
                 self.parse_track_entries(size).await?;
                 break;
@@ -246,9 +280,20 @@ impl MatroskaDemuxer {
         Ok(())
     }
 
-    async fn parse_track_entries(&mut self, size: u64) -> Result<(), MkvError> {
+    async fn parse_segment_info(&mut self, size: u64) -> Result<(), MkvError> {
+        ebml!(&mut self.io, size,
+            (self::TIMESTAMP_SCALE, size) => {
+                let scale = vu(&mut self.io, size).await?;
 
-        ebml!(&mut self.io, size, 
+                self.timebase = Fraction::new(1, scale as u32);
+            }
+        );
+
+        Ok(())
+    }
+
+    async fn parse_track_entries(&mut self, size: u64) -> Result<(), MkvError> {
+        ebml!(&mut self.io, size,
             (self::TRACK_ENTRY, size) => {
                 self.parse_track_entry(size).await?;
             }
@@ -262,8 +307,9 @@ impl MatroskaDemuxer {
         let mut track_type = None;
         let mut codec_id = None;
         let mut codec_private = None;
+        let mut audio = None;
 
-        ebml!(&mut self.io, size, 
+        ebml!(&mut self.io, size,
             (self::TRACK_NUMBER, size) => {
                 track_number = Some(vu(&mut self.io, size).await?);
             },
@@ -282,16 +328,65 @@ impl MatroskaDemuxer {
                 codec_private = Some(vbin(&mut self.io, size).await?);
             },
             (self::AUDIO, size) => {
-
+                audio = Some(self.parse_audio(size).await?);
             }
         );
+
+        let track_number = mand(track_number, TRACK_NUMBER)?;
+        let codec_id = mand(codec_id, CODEC_ID)?;
+
+        let info = match codec_id.as_str() {
+            "V_MPEG4/ISO/AVC" => {
+                let codec_private = mand(codec_private, CODEC_PRIVATE)?;
+
+                let avc_record: AvcDecoderConfigurationRecord = codec_private
+                    .as_slice()
+                    .try_into()
+                    .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+
+                get_codec_from_mp4(&avc_record).unwrap()
+            }
+            "A_AAC" => {
+                let audio = mand(audio, AUDIO)?;
+                let codec_private = mand(codec_private, CODEC_PRIVATE)?;
+
+                MediaInfo {
+                    name: "aac",
+                    kind: MediaKind::Audio(AudioInfo {
+                        sample_rate: audio.sampling_frequency as u32,
+                        sample_bpp: audio.bit_depth.unwrap_or(8) as u32,
+                        sound_type: if audio.channels > 1 {
+                            SoundType::Stereo
+                        } else {
+                            SoundType::Mono
+                        },
+                        codec: AudioCodec::Aac(AacCodec {
+                            extra: codec_private,
+                        }),
+                    }),
+                }
+            }
+            _ => {
+                warn!("Unsupported codec {codec_id:?}");
+                return Ok(());
+            }
+        };
+
+        let stream = Stream {
+            id: track_number as u32,
+            info: Arc::new(info),
+            timebase: self.timebase,
+        };
+
+        self.streams.push(stream);
 
         Ok(())
     }
 
-    async fn parse_audio(&mut self, size: u64) -> Result<(), MkvError> {
+    async fn parse_audio(&mut self, size: u64) -> Result<Audio, MkvError> {
         let mut sampling_frequency = None;
         let mut channels = None;
+        let mut bit_depth = None;
 
         ebml!(&mut self.io, size,
             (self::SAMPLING_FREQUENCY, size) => {
@@ -299,18 +394,25 @@ impl MatroskaDemuxer {
             },
             (self::CHANNELS, size) => {
                 channels = Some(vu(&mut self.io, size).await?);
+            },
+            (self::BIT_DEPTH, size) => {
+                bit_depth = Some(vu(&mut self.io, size).await?);
             }
         );
 
-        let sampling_frequency = sampling_frequency.ok_or(MkvError::MissingElement(SAMPLING_FREQUENCY))?;
+        let sampling_frequency =
+            sampling_frequency.ok_or(MkvError::MissingElement(SAMPLING_FREQUENCY))?;
         let channels = channels.ok_or(MkvError::MissingElement(CHANNELS))?;
 
-        Ok(())
+        Ok(Audio {
+            sampling_frequency,
+            channels,
+            bit_depth,
+        })
     }
 
     async fn parse_video(&mut self, size: u64) -> Result<(), MkvError> {
-
-        ebml!(&mut self.io, size, 
+        ebml!(&mut self.io, size,
             (self::TRACK_NUMBER, size) => {
             }
         );
@@ -319,21 +421,77 @@ impl MatroskaDemuxer {
     }
 }
 
+struct Audio {
+    sampling_frequency: f64,
+    channels: u64,
+    bit_depth: Option<u64>,
+}
+
 #[async_trait]
 impl Demuxer for MatroskaDemuxer {
     async fn start(&mut self) -> anyhow::Result<Vec<Stream>> {
         self.parse_ebml_header().await?;
         self.find_tracks().await?;
 
-        todo!()
+        Ok(self.streams.clone())
     }
 
     async fn read(&mut self) -> anyhow::Result<Packet> {
-        todo!()
+        loop {
+            let (_, id) = vid(&mut self.io).await?;
+            let (_, size) = vint(&mut self.io).await?;
+
+            match id {
+                self::CLUSTER => {continue;},
+                self::TIMESTAMP => {
+                    self.current_cluster_ts = vu(&mut self.io, size).await?;
+                    dbg!(&self.current_cluster_ts);
+                },
+                self::SIMPLE_BLOCK => {
+                    use tokio::io::AsyncReadExt;
+
+                    let (len, track_number) = vint(&mut self.io).await?;
+
+                    let stream = if let Some(stream) = self.streams.iter().find(|s| s.id == track_number as u32) {
+                        stream.clone()
+                    } else {
+                        self.io.skip(size - len as u64).await?;
+                        continue;
+                    };
+
+                    let reader = self.io.reader()?;
+                    let timestamp = reader.read_u16().await?;
+                    let flags = reader.read_u8().await?;
+
+                    let key = (flags & 0b1000_0000) != 0;
+
+                    let mut buffer = vec![0u8; size as usize - len as usize - 3];
+                    reader.read_exact(&mut buffer).await?;
+
+                    let time = MediaTime {
+                        pts: self.current_cluster_ts + timestamp as u64,
+                        dts: None,
+                        timebase: self.timebase,
+                    };
+
+                    let pkt = Packet {
+                        time,
+                        stream,
+                        key,
+                        buffer: buffer.into()
+                    };
+
+                    return Ok(pkt);
+                },
+                _ => {
+                    self.io.skip(size).await?;
+                }
+            }
+        }
     }
 
     async fn stop(&mut self) -> anyhow::Result<()> {
-        todo!()
+        Ok(())
     }
 }
 
@@ -341,8 +499,8 @@ impl Demuxer for MatroskaDemuxer {
 mod test {
     use super::*;
     use assert_matches::assert_matches;
-    use test_case::test_case;
     use std::io::Cursor;
+    use test_case::test_case;
 
     #[test_case(&[0b1000_0010], 2)]
     #[test_case(&[0b0100_0000, 0b0000_0010], 2)]

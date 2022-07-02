@@ -3,10 +3,10 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use axum::{Extension, Router, response::IntoResponse, http::StatusCode, routing::get_service};
-use rusqlite_migration::{Migrations, M};
-use tower_http::{services::ServeDir};
+use axum::{http::StatusCode, response::IntoResponse, routing::get_service, Extension, Router};
 use log::*;
+use rusqlite_migration::{Migrations, M};
+use tower_http::services::ServeDir;
 
 mod db;
 mod error;

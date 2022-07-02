@@ -1,14 +1,16 @@
 use h264_reader::{
     annexb::AnnexBReader,
-    nal::{NalHandler, NalHeader, NalSwitch, UnitType},
+    avcc::AvcDecoderConfigurationRecord,
+    rbsp::decode_nal,
+    nal::{sps::SeqParameterSet, NalHandler, NalHeader, NalSwitch, UnitType},
     Context,
 };
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut, BufMut};
 
 use std::cell::RefCell;
 
-use crate::Span;
+use crate::{MediaInfo, MediaKind, Span, VideoInfo, VideoCodec, H264Codec};
 
 /// Describes how H.264 and H.265 NAL units are framed.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -188,6 +190,53 @@ pub fn is_video_nal_unit(nal: &Bytes) -> bool {
 
 pub fn nut_header(nal: &Bytes) -> Option<UnitType> {
     NalHeader::new(nal[0]).map(|h| h.nal_unit_type()).ok()
+}
+
+pub fn get_codec_from_mp4(decoder_config: &AvcDecoderConfigurationRecord) -> anyhow::Result<MediaInfo> {
+    let sps_bytes_no_header = decoder_config
+        .sequence_parameter_sets()
+        .next()
+        .ok_or(anyhow::anyhow!("No SPS found"))
+        .unwrap()
+        .unwrap();
+    let pps_bytes_no_header = decoder_config
+        .picture_parameter_sets()
+        .next()
+        .ok_or(anyhow::anyhow!("No PPS found"))
+        .unwrap()
+        .unwrap();
+
+    let mut sps_bytes = BytesMut::new();
+    sps_bytes.put_u8(UnitType::SeqParameterSet.id());
+    sps_bytes.extend_from_slice(&sps_bytes_no_header);
+    let sps_bytes = sps_bytes.freeze().into();
+
+    let mut pps_bytes = BytesMut::new();
+    pps_bytes.put_u8(UnitType::PicParameterSet.id());
+    pps_bytes.extend_from_slice(&pps_bytes_no_header);
+    let pps_bytes = pps_bytes.freeze().into();
+
+    let sps = SeqParameterSet::from_bytes(&decode_nal(&sps_bytes_no_header[..]))
+        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let (width, height) = sps.pixel_dimensions().unwrap();
+
+    let codec = H264Codec {
+        bitstream_format: BitstreamFraming::FourByteLength,
+        profile_indication: decoder_config.avc_profile_indication().into(),
+        profile_compatibility: decoder_config.profile_compatibility().into(),
+        level_indication: decoder_config.avc_level_indication().level_idc(),
+        sps: sps_bytes,
+        pps: pps_bytes,
+    };
+
+    Ok(MediaInfo {
+        name: "h264",
+        kind: MediaKind::Video(VideoInfo {
+            width,
+            height,
+            codec: VideoCodec::H264(codec),
+        }),
+    })
 }
 
 struct NalFramerContext {

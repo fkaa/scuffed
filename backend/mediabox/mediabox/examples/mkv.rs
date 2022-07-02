@@ -15,8 +15,22 @@ async fn main() {
 
     let streams = demuxer.start().await.unwrap();
 
+    for stream in streams {
+        eprintln!("#{}: {:?}", stream.id, stream.info);
+    }
+
+    println!("pts,dts,keyframe,stream,length");
     loop {
         let pkt = demuxer.read().await.unwrap();
-        dbg!(pkt);
+
+        print!("{},", pkt.time.pts);
+        if let Some(dts) = pkt.time.dts {
+            print!("{dts},");
+        } else {
+            print!(",");
+        }
+        print!("{},", pkt.key);
+        print!("{},", pkt.stream.id);
+        println!("{}", pkt.buffer.len());
     }
 }

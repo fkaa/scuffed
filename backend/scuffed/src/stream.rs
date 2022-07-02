@@ -65,7 +65,7 @@ async fn handle_rtmp_request(
                     *snapshot.write().await = Some(pkt.clone());
                 }
                 splitter.write_packet(pkt).await
-            },
+            }
             Err(e) => {
                 live_streams.write().await.remove(&app);
                 return Err(e);

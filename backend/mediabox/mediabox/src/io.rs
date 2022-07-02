@@ -1,13 +1,13 @@
 use tokio::{
     fs::File,
-    io::{BufReader, AsyncSeek, AsyncRead, AsyncWrite},
+    io::{AsyncRead, AsyncSeek, AsyncWrite, BufReader},
 };
 
 use downcast::{downcast, Any};
 
 use std::{io::SeekFrom, path::Path};
 
-use crate::{Packet, Stream, Span};
+use crate::{Packet, Span, Stream};
 
 pub trait WriteSeek: Any + AsyncWrite + AsyncSeek + Unpin + Sync + Send + 'static {}
 pub trait Write: Any + AsyncWrite + Unpin + Sync + Send {}
@@ -135,7 +135,7 @@ impl Io {
 
     pub async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), IoError> {
         use tokio::io::AsyncReadExt;
-        
+
         let reader = self.reader.as_mut().ok_or(IoError::NotWriteable)?;
 
         match reader {
@@ -148,7 +148,7 @@ impl Io {
 
     pub async fn skip(&mut self, amt: u64) -> Result<(), IoError> {
         use tokio::io::{self, AsyncReadExt, AsyncSeekExt};
-        
+
         let reader = self.reader.as_mut().ok_or(IoError::NotWriteable)?;
 
         match reader {

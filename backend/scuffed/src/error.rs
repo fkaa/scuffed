@@ -1,14 +1,12 @@
 use axum::{
-    extract::{
-        rejection::{ContentLengthLimitRejection, JsonRejection},
-    },
+    extract::rejection::{ContentLengthLimitRejection, JsonRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use log::error;
 use serde_json::json;
 use thiserror::Error;
-use log::error;
 
 #[derive(Debug, Error)]
 pub enum Error {

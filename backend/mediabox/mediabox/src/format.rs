@@ -2,8 +2,8 @@ use async_trait::async_trait;
 
 use crate::{io::Io, Packet, Stream};
 
-pub mod mp4;
 pub mod mkv;
+pub mod mp4;
 pub mod rtmp;
 
 pub trait MuxerMetadata {
@@ -28,7 +28,6 @@ pub trait Muxer {
     /// appropriate.
     async fn stop(&mut self) -> anyhow::Result<()>;
 }
-
 
 #[async_trait]
 pub trait Demuxer {

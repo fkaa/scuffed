@@ -233,7 +233,6 @@ impl FragmentedMp4Muxer {
         }
 
         debug!("Track mappings: {:?}", self.track_mapping);
-
     }
 }
 
@@ -250,7 +249,6 @@ impl MuxerMetadata for FragmentedMp4Muxer {
 #[async_trait]
 impl Muxer for FragmentedMp4Muxer {
     async fn start(&mut self, streams: Vec<Stream>) -> anyhow::Result<()> {
-
         self.assign_streams(&streams);
         let init_segment = self.initialization_segment()?;
 
