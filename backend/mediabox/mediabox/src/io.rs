@@ -133,6 +133,19 @@ impl Io {
         }
     }
 
+    pub async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), IoError> {
+        use tokio::io::AsyncReadExt;
+        
+        let reader = self.reader.as_mut().ok_or(IoError::NotWriteable)?;
+
+        match reader {
+            Reader::Seekable(reader) => reader.read_exact(buf).await?,
+            Reader::Stream(reader) => reader.read_exact(buf).await?,
+        };
+
+        Ok(())
+    }
+
     pub async fn skip(&mut self, amt: u64) -> Result<(), IoError> {
         use tokio::io::{self, AsyncReadExt, AsyncSeekExt};
         

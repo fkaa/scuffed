@@ -1,6 +1,31 @@
 use async_trait::async_trait;
+use log::*;
 
 use crate::{Stream, Packet, format::{Demuxer}, io::{Io}};
+
+macro_rules! ebml {
+    ($io:expr, $size:expr, $( $pat:pat_param => $blk:block ),* ) => {
+        let mut i = 0;
+        while i < $size {
+            let (len, id) = vid($io).await?;
+            i += len as u64;
+            let (len, size) = vint($io).await?;
+            i += len as u64;
+
+            match (id, size) {
+                $( $pat => $blk, )*
+                _ => {
+                    trace!("Ignoring element: 0x{id:08x} ({size} B)");
+
+                    $io.skip(size).await?;
+                }
+            }
+
+            i += size;
+        }
+    }
+}
+
 
 #[derive(thiserror::Error, Debug)]
 pub enum MkvError {
@@ -8,13 +33,22 @@ pub enum MkvError {
     NotEnoughData,
 
     #[error("Unsupported variable integer size: {0}")]
-    UnsupportedVint(u8),
+    UnsupportedVint(u64),
 
     #[error("Unsupported variable integer ID: {0}")]
-    UnsupportedVid(u8),A
+    UnsupportedVid(u8),
+
+    #[error("Invalid float size: {0}")]
+    InvalidFloatSize(u64),
 
     #[error("Expected 0x{0:08x} but found 0x{1:08x}")]
     UnexpectedId(u32, u32),
+
+    #[error("No element 0x{0:08x} was found")]
+    MissingElement(u32),
+
+    #[error("Invalid UTF-8: {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 
     #[error("{0}")]
     Io(#[from] crate::io::IoError),
@@ -24,8 +58,81 @@ pub enum MkvError {
 }
 
 const EBML_HEADER: u32 = 0x1a45dfa3;
+const EBML_DOC_TYPE: u32 = 0x4282;
+const EBML_DOC_TYPE_VERSION: u32 = 0x4287;
+const EBML_DOC_TYPE_READ_VERSION: u32 = 0x4285;
+const SEGMENT: u32 = 0x18538067;
+const SEEK_HEAD: u32 = 0x114d9b74;
+const SEEK: u32 = 0x4dbb;
+const SEEK_ID: u32 = 0x53ab;
+const SEEK_POSITION: u32 = 0x53ac;
+const TRACKS: u32 = 0x1654ae6b;
+const TRACK_ENTRY: u32 = 0xae;
+const TRACK_NUMBER: u32 = 0xd7;
+const TRACK_UID: u32 = 0x73c5;
+const TRACK_TYPE: u32 = 0x83;
+const CODEC_ID: u32 = 0x86;
+const CODEC_PRIVATE: u32 = 0x63a2;
+const VIDEO: u32 = 0xe0;
+const AUDIO: u32 = 0xe1;
+const SAMPLING_FREQUENCY: u32 = 0xb5;
+const CHANNELS: u32 = 0x9f;
 
-async fn vint(io: &mut Io) -> Result<u64, MkvError> {
+async fn vbin(io: &mut Io, size: u64) -> Result<Vec<u8>, MkvError> {
+    let mut data = vec![0u8; size as usize];
+
+    io.read_exact(&mut data).await?;
+
+    Ok(data)
+}
+
+async fn vstr(io: &mut Io, size: u64) -> Result<String, MkvError> {
+    let mut data = vec![0u8; size as usize];
+
+    io.read_exact(&mut data).await?;
+
+    Ok(String::from_utf8(data)?)
+}
+
+async fn vfloat(io: &mut Io, size: u64) -> Result<f64, MkvError> {
+    let mut data = [0u8; 8];
+
+    let value = match size {
+        0 => 0.0,
+        4 => {
+            io.read_exact(&mut data[..4]).await?;
+
+            f32::from_be_bytes(data[..4].try_into().unwrap()) as f64
+        },
+        8 => {
+            io.read_exact(&mut data[..8]).await?;
+
+            f64::from_be_bytes(data)
+        }
+        _ => return Err(MkvError::InvalidFloatSize(size)),
+    };
+
+    Ok(value)
+}
+
+async fn vu(io: &mut Io, size: u64) -> Result<u64, MkvError> {
+    if size > 8 {
+        return Err(MkvError::UnsupportedVint(size));
+    }
+
+    let mut data = [0u8; 8];
+    io.read_exact(&mut data[..size as usize]).await?;
+
+    let mut value = 0u64;
+    for i in 0..size {
+        value <<= 8;
+        value |= data[i as usize] as u64;
+    }
+
+    Ok(value)
+}
+
+async fn vint(io: &mut Io) -> Result<(u8, u64), MkvError> {
     use tokio::io::AsyncReadExt;
 
     let reader = io.reader()?;
@@ -35,7 +142,7 @@ async fn vint(io: &mut Io) -> Result<u64, MkvError> {
     let len = 1 + extra_bytes as usize;
 
     if extra_bytes > 7 {
-        return Err(MkvError::UnsupportedVint(extra_bytes));
+        return Err(MkvError::UnsupportedVint(extra_bytes as u64));
     }
 
     let mut bytes = [0u8; 7];
@@ -50,10 +157,10 @@ async fn vint(io: &mut Io) -> Result<u64, MkvError> {
         value |= bytes[i as usize] as u64;
     }
 
-    Ok(value)
+    Ok((len as u8, value))
 }
 
-async fn vid(io: &mut Io) -> Result<u32, MkvError> {
+async fn vid(io: &mut Io) -> Result<(u8, u32), MkvError> {
     use tokio::io::AsyncReadExt;
 
     let reader = io.reader()?;
@@ -78,7 +185,7 @@ async fn vid(io: &mut Io) -> Result<u32, MkvError> {
         value |= bytes[i as usize] as u32;
     }
 
-    Ok(value)
+    Ok((len as u8, value))
 }
 
 pub struct MatroskaDemuxer {
@@ -93,13 +200,120 @@ impl MatroskaDemuxer {
     }
 
     async fn parse_ebml_header(&mut self) -> Result<(), MkvError> {
-        let id = vid(&mut self.io).await?;
-        let size = vint(&mut self.io).await?;
+        let (_, id) = vid(&mut self.io).await?;
+        let (_, size) = vint(&mut self.io).await?;
 
         if id != EBML_HEADER {
             return Err(MkvError::UnexpectedId(EBML_HEADER, id));
         }
-        
+
+        ebml!(&mut self.io, size,
+            (self::EBML_DOC_TYPE, size) => {
+                let doc_type = vstr(&mut self.io, size).await?;
+
+                debug!("DocType: {doc_type}");
+            },
+            (self::EBML_DOC_TYPE_VERSION, size) => {
+                let version = vu(&mut self.io, size).await?;
+
+                debug!("DocTypeVersion: {version}");
+            },
+            (self::EBML_DOC_TYPE_READ_VERSION, size) => {
+                let version = vu(&mut self.io, size).await?;
+
+                debug!("DocTypeReadVersion: {version}");
+            }
+        );
+
+        Ok(())
+    }
+
+    async fn find_tracks(&mut self) -> Result<(), MkvError> {
+        let (_, id) = vid(&mut self.io).await?;
+        let (_, size) = vint(&mut self.io).await?;
+
+        if id != SEGMENT {
+            return Err(MkvError::UnexpectedId(SEGMENT, id));
+        }
+
+        ebml!(&mut self.io, size,
+            (self::TRACKS, size) => {
+                self.parse_track_entries(size).await?;
+                break;
+            }
+        );
+
+        Ok(())
+    }
+
+    async fn parse_track_entries(&mut self, size: u64) -> Result<(), MkvError> {
+
+        ebml!(&mut self.io, size, 
+            (self::TRACK_ENTRY, size) => {
+                self.parse_track_entry(size).await?;
+            }
+        );
+
+        Ok(())
+    }
+
+    async fn parse_track_entry(&mut self, size: u64) -> Result<(), MkvError> {
+        let mut track_number = None;
+        let mut track_type = None;
+        let mut codec_id = None;
+        let mut codec_private = None;
+
+        ebml!(&mut self.io, size, 
+            (self::TRACK_NUMBER, size) => {
+                track_number = Some(vu(&mut self.io, size).await?);
+            },
+            /*(self::TRACK_UID, size) => {
+                let uid = vu(&mut self.io, size).await?;
+
+                debug!("TrackUID: {uid:016x}");
+            },*/
+            (self::TRACK_TYPE, size) => {
+                track_type = Some(vu(&mut self.io, size).await?);
+            },
+            (self::CODEC_ID, size) => {
+                codec_id = Some(vstr(&mut self.io, size).await?);
+            },
+            (self::CODEC_PRIVATE, size) => {
+                codec_private = Some(vbin(&mut self.io, size).await?);
+            },
+            (self::AUDIO, size) => {
+
+            }
+        );
+
+        Ok(())
+    }
+
+    async fn parse_audio(&mut self, size: u64) -> Result<(), MkvError> {
+        let mut sampling_frequency = None;
+        let mut channels = None;
+
+        ebml!(&mut self.io, size,
+            (self::SAMPLING_FREQUENCY, size) => {
+                sampling_frequency = Some(vfloat(&mut self.io, size).await?);
+            },
+            (self::CHANNELS, size) => {
+                channels = Some(vu(&mut self.io, size).await?);
+            }
+        );
+
+        let sampling_frequency = sampling_frequency.ok_or(MkvError::MissingElement(SAMPLING_FREQUENCY))?;
+        let channels = channels.ok_or(MkvError::MissingElement(CHANNELS))?;
+
+        Ok(())
+    }
+
+    async fn parse_video(&mut self, size: u64) -> Result<(), MkvError> {
+
+        ebml!(&mut self.io, size, 
+            (self::TRACK_NUMBER, size) => {
+            }
+        );
 
         Ok(())
     }
@@ -108,14 +322,10 @@ impl MatroskaDemuxer {
 #[async_trait]
 impl Demuxer for MatroskaDemuxer {
     async fn start(&mut self) -> anyhow::Result<Vec<Stream>> {
-        loop {
-            let id = vid(&mut self.io).await?;
-            let size = vint(&mut self.io).await?;
+        self.parse_ebml_header().await?;
+        self.find_tracks().await?;
 
-            println!("0x{id:08x} ({size} B)");
-
-            self.io.skip(size).await?;
-        }
+        todo!()
     }
 
     async fn read(&mut self) -> anyhow::Result<Packet> {
