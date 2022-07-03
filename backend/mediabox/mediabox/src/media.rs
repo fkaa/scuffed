@@ -156,11 +156,28 @@ pub struct AudioInfo {
     pub codec: AudioCodec,
 }
 
+#[derive(Clone, Debug)]
+pub struct AssCodec {
+    pub header: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum SubtitleCodec {
+    Ass(AssCodec),
+}
+
+/// Information about a piece of subtitle media
+#[derive(Clone, Debug)]
+pub struct SubtitleInfo {
+    pub codec: SubtitleCodec,
+}
+
 /// The kind of media
 #[derive(Clone)]
 pub enum MediaKind {
     Video(VideoInfo),
     Audio(AudioInfo),
+    Subtitle(SubtitleInfo),
 }
 
 impl fmt::Debug for MediaKind {
@@ -168,6 +185,7 @@ impl fmt::Debug for MediaKind {
         match self {
             MediaKind::Video(video) => write!(f, "{:?}", video),
             MediaKind::Audio(audio) => write!(f, "{:?}", audio),
+            MediaKind::Subtitle(subtitle) => write!(f, "{:?}", subtitle),
         }
     }
 }
@@ -191,6 +209,14 @@ impl MediaInfo {
     pub fn audio(&self) -> Option<&AudioInfo> {
         if let MediaKind::Audio(audio) = &self.kind {
             Some(audio)
+        } else {
+            None
+        }
+    }
+
+    pub fn subtitle(&self) -> Option<&SubtitleInfo> {
+        if let MediaKind::Subtitle(subtitle) = &self.kind {
+            Some(subtitle)
         } else {
             None
         }

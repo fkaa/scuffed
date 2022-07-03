@@ -4,7 +4,7 @@ use log::*;
 
 use std::sync::Arc;
 
-use crate::{codec::nal::get_codec_from_mp4, format::Demuxer, io::Io, MediaTime, Packet, Stream, SoundType, AudioCodec, MediaInfo, MediaKind, AudioInfo, Fraction, AacCodec};
+use crate::{codec::nal::get_codec_from_mp4, format::Demuxer, io::Io, SubtitleInfo, SubtitleCodec, AssCodec, MediaTime, Packet, Stream, SoundType, AudioCodec, MediaInfo, MediaKind, AudioInfo, Fraction, AacCodec};
 
 macro_rules! ebml {
     ($io:expr, $size:expr, $( $pat:pat_param => $blk:block ),* ) => {
@@ -95,6 +95,9 @@ const BIT_DEPTH: u32 = 0x6264;
 const CLUSTER: u32 = 0x1f43b675;
 const TIMESTAMP: u32 = 0xe7;
 const SIMPLE_BLOCK: u32 = 0xa3;
+const BLOCK_GROUP: u32 = 0xa0;
+const BLOCK: u32 = 0xa1;
+const BLOCK_DURATION: u32 = 0x9b;
 
 async fn vbin(io: &mut Io, size: u64) -> Result<Vec<u8>, MkvError> {
     let mut data = vec![0u8; size as usize];
@@ -336,6 +339,21 @@ impl MatroskaDemuxer {
         let codec_id = mand(codec_id, CODEC_ID)?;
 
         let info = match codec_id.as_str() {
+            "S_TEXT/ASS" => {
+                let codec_private = mand(codec_private, CODEC_PRIVATE)?;
+                let header = String::from_utf8(codec_private)?;
+
+                debug!("{header}");
+
+                MediaInfo {
+                    name: "ass",
+                    kind: MediaKind::Subtitle(SubtitleInfo {
+                        codec: SubtitleCodec::Ass(AssCodec {
+                            header,
+                        }),
+                    }),
+                }
+            }
             "V_MPEG4/ISO/AVC" => {
                 let codec_private = mand(codec_private, CODEC_PRIVATE)?;
 
@@ -419,6 +437,42 @@ impl MatroskaDemuxer {
 
         Ok(())
     }
+
+    async fn read_block(&mut self, size: u64) -> Result<Option<Packet>, MkvError> {
+        use tokio::io::AsyncReadExt;
+
+        let (len, track_number) = vint(&mut self.io).await?;
+
+        let stream = if let Some(stream) = self.streams.iter().find(|s| s.id == track_number as u32) {
+            stream.clone()
+        } else {
+            self.io.skip(size - len as u64).await?;
+
+            return Ok(None);
+        };
+
+        let reader = self.io.reader()?;
+        let timestamp = reader.read_u16().await?;
+        let flags = reader.read_u8().await?;
+
+        let key = (flags & 0b1000_0000) != 0;
+
+        let mut buffer = vec![0u8; size as usize - len as usize - 3];
+        reader.read_exact(&mut buffer).await?;
+
+        let time = MediaTime {
+            pts: self.current_cluster_ts + timestamp as u64,
+            dts: None,
+            timebase: self.timebase,
+        };
+
+        Ok(Some(Packet {
+            time,
+            stream,
+            key,
+            buffer: buffer.into()
+        }))
+    }
 }
 
 struct Audio {
@@ -445,45 +499,28 @@ impl Demuxer for MatroskaDemuxer {
                 self::CLUSTER => {continue;},
                 self::TIMESTAMP => {
                     self.current_cluster_ts = vu(&mut self.io, size).await?;
-                    dbg!(&self.current_cluster_ts);
+                    trace!("cluster_ts: {}", self.current_cluster_ts);
+                },
+                self::BLOCK_GROUP => {
+                    let pkt = None;
+                    let block_duration = None;
+
+                    ebml!(&mut self.io, size,
+                        (self::BLOCK, size) => {
+                            pkt = Some(self.read_block(size).await?);
+                        },
+                        (self::BLOCK_DURATION, size) => {
+                            block_duration = Some(vu(&mut self.io, size).await?);
+                        }
+                    );
                 },
                 self::SIMPLE_BLOCK => {
-                    use tokio::io::AsyncReadExt;
-
-                    let (len, track_number) = vint(&mut self.io).await?;
-
-                    let stream = if let Some(stream) = self.streams.iter().find(|s| s.id == track_number as u32) {
-                        stream.clone()
-                    } else {
-                        self.io.skip(size - len as u64).await?;
-                        continue;
-                    };
-
-                    let reader = self.io.reader()?;
-                    let timestamp = reader.read_u16().await?;
-                    let flags = reader.read_u8().await?;
-
-                    let key = (flags & 0b1000_0000) != 0;
-
-                    let mut buffer = vec![0u8; size as usize - len as usize - 3];
-                    reader.read_exact(&mut buffer).await?;
-
-                    let time = MediaTime {
-                        pts: self.current_cluster_ts + timestamp as u64,
-                        dts: None,
-                        timebase: self.timebase,
-                    };
-
-                    let pkt = Packet {
-                        time,
-                        stream,
-                        key,
-                        buffer: buffer.into()
-                    };
-
-                    return Ok(pkt);
+                    if let Some(pkt) = self.read_block(size).await? {
+                        return Ok(pkt);
+                    }
                 },
                 _ => {
+                    trace!("Ignoring element 0x{id:08x} ({size} B)");
                     self.io.skip(size).await?;
                 }
             }
