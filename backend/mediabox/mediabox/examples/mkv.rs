@@ -30,6 +30,7 @@ async fn main() {
     loop {
         let pkt = demuxer.read().await.unwrap();
 
+            println!("{:?}", pkt.time);
         if pkt.stream.id == subtitle_id {
             println!("{}", String::from_utf8(pkt.buffer.to_slice().into_owned()).unwrap());
         }

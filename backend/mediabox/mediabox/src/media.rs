@@ -350,6 +350,7 @@ impl From<MediaDuration> for Duration {
 pub struct MediaTime {
     pub pts: u64,
     pub dts: Option<u64>,
+    pub duration: Option<u64>,
     pub timebase: Fraction,
 }
 
@@ -377,13 +378,16 @@ impl std::ops::Sub for MediaTime {
 
 impl fmt::Debug for MediaTime {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}pts ", self.pts)?;
+        let pts = self.pts as f32 / self.timebase.denominator as f32;
+        write!(f, "{pts:.3}s")?;
 
-        if let Some(dts) = self.dts {
-            write!(f, "{}dts ", dts)?
+        if let Some(duration) = self.duration {
+            write!(f, "-{:.3}s ", pts + duration as f32 / self.timebase.denominator as f32)?;
         }
 
-        write!(f, "{:?}", self.timebase)?;
+        if let Some(dts) = self.dts {
+            write!(f, "{:.3}s (decode) ", dts as f32 / self.timebase.denominator as f32)?
+        }
 
         Ok(())
     }
@@ -402,10 +406,14 @@ impl MediaTime {
         let dts = self
             .dts
             .map(|ts| convert_timebase(ts, self.timebase, new_timebase));
+        let duration = self
+            .duration
+            .map(|ts| convert_timebase(ts, self.timebase, new_timebase));
 
         MediaTime {
             pts,
             dts,
+            duration,
             timebase: new_timebase,
         }
     }

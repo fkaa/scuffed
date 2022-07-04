@@ -373,6 +373,7 @@ impl RtmpSession {
         let time = media::MediaTime {
             pts: self.video_time,
             dts: None,
+            duration: None,
             timebase: RTMP_TIMEBASE,
         };
 
@@ -412,6 +413,7 @@ impl RtmpSession {
         let time = media::MediaTime {
             pts: self.audio_time,
             dts: None,
+            duration: None,
             timebase: RTMP_TIMEBASE,
         };
 

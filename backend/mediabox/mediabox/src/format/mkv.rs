@@ -288,7 +288,7 @@ impl MatroskaDemuxer {
             (self::TIMESTAMP_SCALE, size) => {
                 let scale = vu(&mut self.io, size).await?;
 
-                self.timebase = Fraction::new(1, scale as u32);
+                self.timebase = Fraction::new(1, scale as u32 / 1000);
             }
         );
 
@@ -463,6 +463,7 @@ impl MatroskaDemuxer {
         let time = MediaTime {
             pts: self.current_cluster_ts + timestamp as u64,
             dts: None,
+            duration: None,
             timebase: self.timebase,
         };
 
@@ -502,17 +503,23 @@ impl Demuxer for MatroskaDemuxer {
                     trace!("cluster_ts: {}", self.current_cluster_ts);
                 },
                 self::BLOCK_GROUP => {
-                    let pkt = None;
-                    let block_duration = None;
+                    let mut pkt = None;
+                    let mut block_duration = None;
 
                     ebml!(&mut self.io, size,
-                        (self::BLOCK, size) => {
-                            pkt = Some(self.read_block(size).await?);
+                        (BLOCK, size) => {
+                            pkt = self.read_block(size).await?;
                         },
-                        (self::BLOCK_DURATION, size) => {
+                        (BLOCK_DURATION, size) => {
                             block_duration = Some(vu(&mut self.io, size).await?);
                         }
                     );
+
+                    if let Some(mut pkt) = pkt {
+                        pkt.time.duration = block_duration;
+
+                        return Ok(pkt);
+                    }
                 },
                 self::SIMPLE_BLOCK => {
                     if let Some(pkt) = self.read_block(size).await? {
