@@ -1,7 +1,7 @@
+#![allow(dead_code)]
 use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use axum::{http::StatusCode, response::IntoResponse, routing::get_service, Extension, Router};
 use log::*;

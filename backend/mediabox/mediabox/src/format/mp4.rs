@@ -8,7 +8,7 @@ use crate::{
     codec::nal::{convert_bitstream, frame_nal_units, BitstreamFraming},
     format::{Muxer, MuxerMetadata},
     io::Io,
-    H264Codec, MediaKind, MediaTime, Packet, Span, Stream, VideoCodec, VideoInfo,
+    H264Codec, MediaKind, MediaTime, Packet, Span, Track, VideoCodec, VideoInfo,
 };
 
 // Wonderful macro taken from https://github.com/scottlamb/retina/ examples
@@ -29,8 +29,8 @@ macro_rules! write_box {
 }
 
 pub struct FragmentedMp4Muxer {
-    video: Option<Stream>,
-    audio: Option<Stream>,
+    video: Option<Track>,
+    audio: Option<Track>,
     start_times: HashMap<u32, MediaTime>,
     prev_times: HashMap<u32, MediaTime>,
     track_mapping: HashMap<u32, u32>,
@@ -39,7 +39,7 @@ pub struct FragmentedMp4Muxer {
 }
 
 impl FragmentedMp4Muxer {
-    pub fn with_streams(streams: &[Stream]) -> Self {
+    pub fn with_streams(streams: &[Track]) -> Self {
         let mut muxer = FragmentedMp4Muxer {
             video: None,
             audio: None,
@@ -121,17 +121,17 @@ impl FragmentedMp4Muxer {
     pub fn write_media_segment(&mut self, packet: Packet) -> anyhow::Result<Span> {
         let prev_time = self
             .prev_times
-            .entry(packet.stream.id)
+            .entry(packet.track.id)
             .or_insert_with(|| packet.time.clone());
         let start_time = self
             .start_times
-            .entry(packet.stream.id)
+            .entry(packet.track.id)
             .or_insert_with(|| packet.time.clone());
 
         let media_duration = packet.time.clone() - prev_time.clone();
         let base_offset = prev_time.clone() - start_time.clone();
 
-        let track_id = self.track_mapping[&packet.stream.id];
+        let track_id = self.track_mapping[&packet.track.id];
 
         let duration = if media_duration.duration == 0 {
             packet.guess_duration().unwrap()
@@ -189,7 +189,7 @@ impl FragmentedMp4Muxer {
         mdat_header.extend_from_slice(b"mdat");
         let mdat_header = mdat_header.freeze();
 
-        let sample_data = match packet.stream.info.kind {
+        let sample_data = match packet.track.info.kind {
             MediaKind::Video(VideoInfo {
                 codec:
                     VideoCodec::H264(H264Codec {
@@ -209,13 +209,13 @@ impl FragmentedMp4Muxer {
             .collect::<Span>();
 
         self.seq += 1;
-        self.prev_times.insert(packet.stream.id, packet.time);
+        self.prev_times.insert(packet.track.id, packet.time);
 
         Ok(segment)
     }
 
-    fn assign_streams(&mut self, streams: &[Stream]) {
-        use crate::media::MediaStreamExt;
+    fn assign_streams(&mut self, streams: &[Track]) {
+        use crate::media::MediaTrackExt;
 
         let mut track_number = 1;
         if let Some(video) = streams.video() {
@@ -248,7 +248,7 @@ impl MuxerMetadata for FragmentedMp4Muxer {
 
 #[async_trait]
 impl Muxer for FragmentedMp4Muxer {
-    async fn start(&mut self, streams: Vec<Stream>) -> anyhow::Result<()> {
+    async fn start(&mut self, streams: Vec<Track>) -> anyhow::Result<()> {
         self.assign_streams(&streams);
         let init_segment = self.initialization_segment()?;
 
@@ -258,7 +258,7 @@ impl Muxer for FragmentedMp4Muxer {
     }
 
     async fn write(&mut self, packet: Packet) -> anyhow::Result<()> {
-        if !self.track_mapping.contains_key(&packet.stream.id) {
+        if !self.track_mapping.contains_key(&packet.track.id) {
             return Ok(());
         }
 
@@ -274,7 +274,7 @@ impl Muxer for FragmentedMp4Muxer {
     }
 }
 
-fn write_video_trak(buf: &mut BytesMut, stream: &Stream) -> anyhow::Result<()> {
+fn write_video_trak(buf: &mut BytesMut, stream: &Track) -> anyhow::Result<()> {
     let info = stream
         .info
         .video()

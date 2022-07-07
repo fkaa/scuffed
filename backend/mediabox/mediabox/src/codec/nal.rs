@@ -1,16 +1,16 @@
 use h264_reader::{
     annexb::AnnexBReader,
     avcc::AvcDecoderConfigurationRecord,
-    rbsp::decode_nal,
     nal::{sps::SeqParameterSet, NalHandler, NalHeader, NalSwitch, UnitType},
+    rbsp::decode_nal,
     Context,
 };
 
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use std::cell::RefCell;
 
-use crate::{MediaInfo, MediaKind, Span, VideoInfo, VideoCodec, H264Codec};
+use crate::{H264Codec, MediaInfo, MediaKind, Span, VideoCodec, VideoInfo};
 
 /// Describes how H.264 and H.265 NAL units are framed.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -192,7 +192,9 @@ pub fn nut_header(nal: &Bytes) -> Option<UnitType> {
     NalHeader::new(nal[0]).map(|h| h.nal_unit_type()).ok()
 }
 
-pub fn get_codec_from_mp4(decoder_config: &AvcDecoderConfigurationRecord) -> anyhow::Result<MediaInfo> {
+pub fn get_codec_from_mp4(
+    decoder_config: &AvcDecoderConfigurationRecord,
+) -> anyhow::Result<MediaInfo> {
     let sps_bytes_no_header = decoder_config
         .sequence_parameter_sets()
         .next()

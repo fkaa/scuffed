@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::{io::Io, Packet, Stream};
+use crate::{io::Io, Packet, Span, Track};
 
 pub mod mkv;
 pub mod mp4;
@@ -16,7 +16,7 @@ pub trait MuxerMetadata {
 #[async_trait]
 pub trait Muxer {
     /// Starts the muxer with the given streams.
-    async fn start(&mut self, streams: Vec<Stream>) -> anyhow::Result<()>;
+    async fn start(&mut self, streams: Vec<Track>) -> anyhow::Result<()>;
 
     /// Writes a packet to the muxer.
     ///
@@ -31,7 +31,18 @@ pub trait Muxer {
 
 #[async_trait]
 pub trait Demuxer {
-    async fn start(&mut self) -> anyhow::Result<Vec<Stream>>;
+    async fn start(&mut self) -> anyhow::Result<Movie>;
     async fn read(&mut self) -> anyhow::Result<Packet>;
     async fn stop(&mut self) -> anyhow::Result<()>;
+}
+
+pub struct Movie {
+    pub tracks: Vec<Track>,
+    pub attachments: Vec<Attachment>,
+}
+
+pub struct Attachment {
+    pub name: String,
+    pub mime: String,
+    pub data: Span,
 }

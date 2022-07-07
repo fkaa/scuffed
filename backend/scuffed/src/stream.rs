@@ -15,10 +15,7 @@ use mediabox::{
     Span,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{
-    mpsc::{self, Sender},
-    RwLock,
-};
+use tokio::sync::{mpsc::Sender, RwLock};
 
 use std::{collections::HashMap, io, sync::Arc};
 
@@ -61,7 +58,7 @@ async fn handle_rtmp_request(
     loop {
         match session.read_frame().await {
             Ok(pkt) => {
-                if pkt.key && pkt.stream.is_video() {
+                if pkt.key && pkt.track.is_video() {
                     *snapshot.write().await = Some(pkt.clone());
                 }
                 splitter.write_packet(pkt).await
@@ -102,7 +99,7 @@ pub struct LiveStream {
 }
 
 impl LiveStream {
-    pub fn new(streams: Vec<mediabox::Stream>) -> Self {
+    pub fn new(streams: Vec<mediabox::Track>) -> Self {
         LiveStream {
             started: Instant::now(),
             splitter: PacketSplitter::new(streams),
@@ -114,11 +111,11 @@ impl LiveStream {
 #[derive(Clone)]
 pub struct PacketSplitter {
     targets: Arc<RwLock<Vec<Sender<mediabox::Packet>>>>,
-    streams: Vec<mediabox::Stream>,
+    streams: Vec<mediabox::Track>,
 }
 
 impl PacketSplitter {
-    fn new(streams: Vec<mediabox::Stream>) -> Self {
+    fn new(streams: Vec<mediabox::Track>) -> Self {
         PacketSplitter {
             targets: Arc::new(RwLock::new(Vec::new())),
             streams,
@@ -206,7 +203,7 @@ pub async fn get_snapshot(
     Ok(response)
 }
 
-fn snapshot_mp4(streams: &[mediabox::Stream], packet: mediabox::Packet) -> anyhow::Result<Span> {
+fn snapshot_mp4(streams: &[mediabox::Track], packet: mediabox::Packet) -> anyhow::Result<Span> {
     let mut fragger = FragmentedMp4Muxer::with_streams(streams);
 
     let span = [

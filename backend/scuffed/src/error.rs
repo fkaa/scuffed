@@ -1,5 +1,5 @@
 use axum::{
-    extract::rejection::{ContentLengthLimitRejection, JsonRejection},
+    extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,

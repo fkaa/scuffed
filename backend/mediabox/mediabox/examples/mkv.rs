@@ -9,30 +9,33 @@ use tokio::fs::File;
 async fn main() {
     env_logger::init();
 
-    let path = "test.mkv";
-    let file = File::open(path).await.unwrap();
+    let file = File::open("test.mkv").await.unwrap();
     let io = Io::from_reader(Box::new(file));
     let mut demuxer = MatroskaDemuxer::new(io);
 
-    let streams = demuxer.start().await.unwrap();
+    let movie = demuxer.start().await.unwrap();
 
-    for stream in &streams {
-        eprintln!("#{}: {:?}", stream.id, stream.info);
+    for track in &movie.tracks {
+        eprintln!("#{}: {:?}", track.id, track.info);
     }
 
-    let subtitle_id = streams
+    let subtitle_id = movie
+        .tracks
         .iter()
-        .find(|s| s.info.subtitle().is_some())
-        .map(|s| s.id)
+        .find(|t| t.info.subtitle().is_some())
+        .map(|t| t.id)
         .unwrap();
 
     // println!("pts,dts,keyframe,stream,length");
     loop {
         let pkt = demuxer.read().await.unwrap();
 
-            println!("{:?}", pkt.time);
-        if pkt.stream.id == subtitle_id {
-            println!("{}", String::from_utf8(pkt.buffer.to_slice().into_owned()).unwrap());
+        println!("{:?}", pkt.time);
+        if pkt.track.id == subtitle_id {
+            println!(
+                "{}",
+                String::from_utf8(pkt.buffer.to_slice().into_owned()).unwrap()
+            );
         }
 
         /*print!("{},", pkt.time.pts);

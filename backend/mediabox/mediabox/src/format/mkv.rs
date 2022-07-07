@@ -4,7 +4,13 @@ use log::*;
 
 use std::sync::Arc;
 
-use crate::{codec::nal::get_codec_from_mp4, format::Demuxer, io::Io, SubtitleInfo, SubtitleCodec, AssCodec, MediaTime, Packet, Stream, SoundType, AudioCodec, MediaInfo, MediaKind, AudioInfo, Fraction, AacCodec};
+use crate::{
+    codec::nal::get_codec_from_mp4,
+    format::{Demuxer, Movie},
+    io::Io,
+    AacCodec, AssCodec, AudioCodec, AudioInfo, Fraction, MediaInfo, MediaKind, MediaTime, Packet,
+    SoundType, SubtitleCodec, SubtitleInfo, Track,
+};
 
 macro_rules! ebml {
     ($io:expr, $size:expr, $( $pat:pat_param => $blk:block ),* ) => {
@@ -223,14 +229,19 @@ async fn vid(io: &mut Io) -> Result<(u8, u32), MkvError> {
 
 pub struct MatroskaDemuxer {
     io: Io,
-    streams: Vec<Stream>,
+    streams: Vec<Track>,
     timebase: Fraction,
     current_cluster_ts: u64,
 }
 
 impl MatroskaDemuxer {
     pub fn new(io: Io) -> Self {
-        MatroskaDemuxer { io, streams: Vec::new(), timebase: Fraction::new(1, 1), current_cluster_ts: 0 }
+        MatroskaDemuxer {
+            io,
+            streams: Vec::new(),
+            timebase: Fraction::new(1, 1),
+            current_cluster_ts: 0,
+        }
     }
 
     async fn parse_ebml_header(&mut self) -> Result<(), MkvError> {
@@ -307,7 +318,7 @@ impl MatroskaDemuxer {
 
     async fn parse_track_entry(&mut self, size: u64) -> Result<(), MkvError> {
         let mut track_number = None;
-        let mut track_type = None;
+        // let mut track_type = None;
         let mut codec_id = None;
         let mut codec_private = None;
         let mut audio = None;
@@ -321,9 +332,9 @@ impl MatroskaDemuxer {
 
                 debug!("TrackUID: {uid:016x}");
             },*/
-            (self::TRACK_TYPE, size) => {
+            /*(self::TRACK_TYPE, size) => {
                 track_type = Some(vu(&mut self.io, size).await?);
-            },
+            },*/
             (self::CODEC_ID, size) => {
                 codec_id = Some(vstr(&mut self.io, size).await?);
             },
@@ -348,9 +359,7 @@ impl MatroskaDemuxer {
                 MediaInfo {
                     name: "ass",
                     kind: MediaKind::Subtitle(SubtitleInfo {
-                        codec: SubtitleCodec::Ass(AssCodec {
-                            header,
-                        }),
+                        codec: SubtitleCodec::Ass(AssCodec { header }),
                     }),
                 }
             }
@@ -390,7 +399,7 @@ impl MatroskaDemuxer {
             }
         };
 
-        let stream = Stream {
+        let stream = Track {
             id: track_number as u32,
             info: Arc::new(info),
             timebase: self.timebase,
@@ -443,8 +452,8 @@ impl MatroskaDemuxer {
 
         let (len, track_number) = vint(&mut self.io).await?;
 
-        let stream = if let Some(stream) = self.streams.iter().find(|s| s.id == track_number as u32) {
-            stream.clone()
+        let track = if let Some(track) = self.streams.iter().find(|s| s.id == track_number as u32) {
+            track.clone()
         } else {
             self.io.skip(size - len as u64).await?;
 
@@ -469,9 +478,9 @@ impl MatroskaDemuxer {
 
         Ok(Some(Packet {
             time,
-            stream,
+            track,
             key,
-            buffer: buffer.into()
+            buffer: buffer.into(),
         }))
     }
 }
@@ -484,11 +493,14 @@ struct Audio {
 
 #[async_trait]
 impl Demuxer for MatroskaDemuxer {
-    async fn start(&mut self) -> anyhow::Result<Vec<Stream>> {
+    async fn start(&mut self) -> anyhow::Result<Movie> {
         self.parse_ebml_header().await?;
         self.find_tracks().await?;
 
-        Ok(self.streams.clone())
+        Ok(Movie {
+            tracks: self.streams.clone(),
+            attachments: Vec::new(),
+        })
     }
 
     async fn read(&mut self) -> anyhow::Result<Packet> {
@@ -497,11 +509,13 @@ impl Demuxer for MatroskaDemuxer {
             let (_, size) = vint(&mut self.io).await?;
 
             match id {
-                self::CLUSTER => {continue;},
+                self::CLUSTER => {
+                    continue;
+                }
                 self::TIMESTAMP => {
                     self.current_cluster_ts = vu(&mut self.io, size).await?;
                     trace!("cluster_ts: {}", self.current_cluster_ts);
-                },
+                }
                 self::BLOCK_GROUP => {
                     let mut pkt = None;
                     let mut block_duration = None;
@@ -520,12 +534,12 @@ impl Demuxer for MatroskaDemuxer {
 
                         return Ok(pkt);
                     }
-                },
+                }
                 self::SIMPLE_BLOCK => {
                     if let Some(pkt) = self.read_block(size).await? {
                         return Ok(pkt);
                     }
-                },
+                }
                 _ => {
                     trace!("Ignoring element 0x{id:08x} ({size} B)");
                     self.io.skip(size).await?;

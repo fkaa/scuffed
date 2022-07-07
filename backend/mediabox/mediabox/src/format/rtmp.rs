@@ -28,7 +28,7 @@ use tokio::net::{tcp, TcpListener, TcpStream, ToSocketAddrs};
 
 use std::{cell::RefCell, collections::VecDeque, net::SocketAddr, sync::Arc};
 
-use crate::{codec::nal::BitstreamFraming, media, Fraction, Stream};
+use crate::{codec::nal::BitstreamFraming, media, Fraction, Track};
 
 const RTMP_TIMEBASE: Fraction = Fraction::new(1, 1000);
 const RTMP_AAC_TIMEBASE: Fraction = Fraction::new(1, 48000);
@@ -280,11 +280,11 @@ pub struct RtmpSession {
     server_session: ServerSession,
     rtmp_tx: Sender<Packet>,
 
-    video_stream: Option<media::Stream>,
+    video_stream: Option<media::Track>,
     video_time: u64,
     prev_video_time: Option<RtmpTimestamp>,
 
-    audio_stream: Option<media::Stream>,
+    audio_stream: Option<media::Track>,
     audio_time: u64,
     prev_audio_time: Option<RtmpTimestamp>,
 
@@ -322,7 +322,7 @@ impl RtmpSession {
     fn assign_audio_stream(&mut self, tag: flvparse::AudioTag) -> anyhow::Result<()> {
         let codec_info = get_audio_codec_info(&tag)?;
 
-        self.audio_stream = Some(media::Stream {
+        self.audio_stream = Some(media::Track {
             id: 1,
             info: Arc::new(codec_info),
             timebase: RTMP_AAC_TIMEBASE,
@@ -342,7 +342,7 @@ impl RtmpSession {
             _ => anyhow::bail!("Unsupported AVC packet type: {:?}", packet.packet_type),
         };
 
-        self.video_stream = Some(media::Stream {
+        self.video_stream = Some(media::Track {
             id: 0,
             info: Arc::new(codec_info),
             timebase: RTMP_TIMEBASE,
@@ -379,7 +379,7 @@ impl RtmpSession {
 
         let pkt = media::Packet {
             time,
-            stream: self.video_stream.clone().unwrap(),
+            track: self.video_stream.clone().unwrap(),
             key: video_tag.header.frame_type == flvparse::FrameType::Key,
             buffer: video_packet.avc_data.to_vec().into(),
         };
@@ -423,7 +423,7 @@ impl RtmpSession {
             time,
             key: true,
             buffer: Bytes::from(audio_tag.body.data[1..].to_vec()).into(),
-            stream: self.audio_stream.clone().unwrap(),
+            track: self.audio_stream.clone().unwrap(),
         };
 
         self.frames.push_back(frame);
@@ -488,7 +488,7 @@ impl RtmpSession {
         Ok(())
     }
 
-    pub async fn streams(&mut self) -> anyhow::Result<Vec<Stream>> {
+    pub async fn streams(&mut self) -> anyhow::Result<Vec<Track>> {
         let expecting_video = self.meta.video_width.is_some();
         let expecting_audio = self.meta.audio_sample_rate.is_some();
 

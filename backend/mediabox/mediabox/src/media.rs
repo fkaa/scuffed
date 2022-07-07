@@ -7,16 +7,16 @@ use crate::{
     Fraction, Span,
 };
 
-pub trait MediaStreamExt {
-    fn video(&self) -> Option<&Stream>;
-    fn audio(&self) -> Option<&Stream>;
+pub trait MediaTrackExt {
+    fn video(&self) -> Option<&Track>;
+    fn audio(&self) -> Option<&Track>;
 }
 
-impl<T: AsRef<[Stream]>> MediaStreamExt for T {
-    fn video(&self) -> Option<&Stream> {
+impl<T: AsRef<[Track]>> MediaTrackExt for T {
+    fn video(&self) -> Option<&Track> {
         self.as_ref().iter().find(|s| s.info.video().is_some())
     }
-    fn audio(&self) -> Option<&Stream> {
+    fn audio(&self) -> Option<&Track> {
         self.as_ref().iter().find(|s| s.info.audio().is_some())
     }
 }
@@ -167,9 +167,20 @@ pub enum SubtitleCodec {
 }
 
 /// Information about a piece of subtitle media
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SubtitleInfo {
     pub codec: SubtitleCodec,
+}
+
+impl fmt::Debug for SubtitleInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.codec {
+            SubtitleCodec::Ass(a) => {
+                write!(f, "{}", a.header)?;
+                Ok(())
+            }
+        }
+    }
 }
 
 /// The kind of media
@@ -190,7 +201,7 @@ impl fmt::Debug for MediaKind {
     }
 }
 
-/// Defines properties about a type of media (eg. a video or audio stream)
+/// Defines properties about a type of media (eg. a video or audio track)
 #[derive(Clone)]
 pub struct MediaInfo {
     pub name: &'static str,
@@ -229,15 +240,15 @@ impl fmt::Debug for MediaInfo {
     }
 }
 
-/// Description of a media stream.
+/// Description of a media track.
 #[derive(Clone)]
-pub struct Stream {
+pub struct Track {
     pub id: u32,
     pub info: Arc<MediaInfo>,
     pub timebase: Fraction,
 }
 
-impl Stream {
+impl Track {
     pub fn is_video(&self) -> bool {
         matches!(self.info.kind, MediaKind::Video(_))
     }
@@ -245,18 +256,18 @@ impl Stream {
 
 /// A media packet.
 ///
-/// A packet contains timestamped opaque data for a given stream.
+/// A packet contains timestamped opaque data for a given track.
 #[derive(Clone)]
 pub struct Packet {
     pub time: MediaTime,
     pub key: bool,
-    pub stream: Stream,
+    pub track: Track,
     pub buffer: Span,
 }
 
 impl Packet {
     pub fn guess_duration(&self) -> Option<MediaDuration> {
-        match &self.stream.info.kind {
+        match &self.track.info.kind {
             MediaKind::Video(VideoInfo {
                 codec: VideoCodec::H264(H264Codec { sps, .. }),
                 ..
@@ -276,7 +287,7 @@ impl Packet {
                     let fps = fps.denominator as f64 / fps.numerator as f64;
                     let duration = Duration::from_nanos((1_000_000_000f64 * fps) as u64);
 
-                    MediaDuration::from_duration(duration, self.stream.timebase)
+                    MediaDuration::from_duration(duration, self.track.timebase)
                 })
             }
             _ => None,
@@ -290,8 +301,8 @@ impl fmt::Debug for Packet {
             .field("time", &self.time)
             .field("key", &self.key)
             .field(
-                "stream",
-                &format_args!("{} ({})", self.stream.id, self.stream.info.name),
+                "track",
+                &format_args!("{} ({})", self.track.id, self.track.info.name),
             )
             .field("buffer", &format_args!("[{}]", self.buffer.len()))
             .finish()
@@ -382,11 +393,19 @@ impl fmt::Debug for MediaTime {
         write!(f, "{pts:.3}s")?;
 
         if let Some(duration) = self.duration {
-            write!(f, "-{:.3}s ", pts + duration as f32 / self.timebase.denominator as f32)?;
+            write!(
+                f,
+                "-{:.3}s ",
+                pts + duration as f32 / self.timebase.denominator as f32
+            )?;
         }
 
         if let Some(dts) = self.dts {
-            write!(f, "{:.3}s (decode) ", dts as f32 / self.timebase.denominator as f32)?
+            write!(
+                f,
+                "{:.3}s (decode) ",
+                dts as f32 / self.timebase.denominator as f32
+            )?
         }
 
         Ok(())

@@ -7,7 +7,7 @@ use downcast::{downcast, Any};
 
 use std::{io::SeekFrom, path::Path};
 
-use crate::{Packet, Span, Stream};
+use crate::Span;
 
 pub trait WriteSeek: Any + AsyncWrite + AsyncSeek + Unpin + Sync + Send + 'static {}
 pub trait Write: Any + AsyncWrite + Unpin + Sync + Send {}

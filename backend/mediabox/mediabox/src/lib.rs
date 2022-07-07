@@ -1,3 +1,4 @@
+#![feature(str_split_as_str)] // used by ASS decoder
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
