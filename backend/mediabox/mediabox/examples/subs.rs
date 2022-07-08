@@ -1,4 +1,5 @@
 use mediabox::codec::ass::*;
+use mediabox::codec::webvtt::*;
 use mediabox::codec::*;
 use mediabox::format::mkv::*;
 use mediabox::format::*;
@@ -8,7 +9,7 @@ use mediabox::*;
 use log::*;
 use tokio::fs::File;
 
-use std::env;
+use std::{env, str};
 
 #[tokio::main]
 async fn main() {
@@ -40,6 +41,11 @@ async fn main() {
         .start(subtitle_info)
         .expect("Failed to init decoder");
 
+    let mut encoder = WebVttEncoder::new();
+    encoder
+        .start(SubtitleDescription::default())
+        .expect("Failed to start encoder");
+
     loop {
         let pkt = demuxer.read().await.unwrap();
 
@@ -53,13 +59,22 @@ async fn main() {
             decoder.feed(pkt).expect("Failed to decode");
 
             while let Some(cue) = decoder.receive() {
-                for part in &cue.text {
+                encoder.feed(cue).expect("Failed to encode");
+
+                while let Some(pkt) = encoder.receive() {
+                    eprintln!(
+                        "{}",
+                        str::from_utf8(&pkt.buffer.to_slice()).expect("Failed to read string")
+                    );
+                }
+
+                /*for part in &cue.text {
                     if let TextPart::Text(txt) = &part {
                         print!("{txt}");
                     }
                 }
 
-                println!("\n");
+                println!("\n");*/
             }
         }
     }

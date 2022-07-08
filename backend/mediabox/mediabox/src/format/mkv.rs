@@ -5,11 +5,11 @@ use log::*;
 use std::sync::Arc;
 
 use crate::{
-    codec::nal::get_codec_from_mp4,
+    codec::{nal::get_codec_from_mp4, AssCodec, SubtitleCodec, SubtitleInfo},
     format::{Demuxer, Movie},
     io::Io,
-    AacCodec, AssCodec, AudioCodec, AudioInfo, Fraction, MediaInfo, MediaKind, MediaTime, Packet,
-    SoundType, SubtitleCodec, SubtitleInfo, Track,
+    AacCodec, AudioCodec, AudioInfo, Fraction, MediaInfo, MediaKind, MediaTime, Packet, SoundType,
+    Track,
 };
 
 macro_rules! ebml {

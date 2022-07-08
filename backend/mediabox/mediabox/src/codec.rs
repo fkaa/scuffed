@@ -1,11 +1,55 @@
-use crate::{MediaTime, Packet, SubtitleInfo};
+use std::{collections::HashMap, fmt};
+
+use crate::{MediaTime, Packet};
 
 pub mod ass;
 pub mod nal;
+pub mod webvtt;
+
+#[derive(Clone, Debug)]
+pub struct AssCodec {
+    pub header: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct WebVttCodec {
+    pub header: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum SubtitleCodec {
+    Ass(AssCodec),
+    WebVtt(WebVttCodec),
+}
+
+/// Information about a piece of subtitle media
+#[derive(Clone)]
+pub struct SubtitleInfo {
+    pub codec: SubtitleCodec,
+}
+
+impl fmt::Debug for SubtitleInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.codec {
+            SubtitleCodec::Ass(a) => {
+                write!(f, "{}", a.header)?;
+            }
+            SubtitleCodec::WebVtt(a) => {
+                write!(f, "{}", a.header)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct SubtitleDescription {
+    styles: HashMap<String, TextStyle>,
+}
 
 #[derive(Default, Debug)]
 pub struct TextStyle {
-    name: String,
     font: Option<String>,
     primary_color: Option<u32>,
     secondary_color: Option<u32>,
@@ -76,10 +120,18 @@ pub enum TextPart {
     Position(TextPosition),
     Fill(TextFill),
     Alpha(TextAlpha),
+    LineBreak,
+    SmartBreak,
 }
 
 pub trait SubtitleDecoder {
     fn start(&mut self, info: &SubtitleInfo) -> anyhow::Result<()>;
     fn feed(&mut self, packet: Packet) -> anyhow::Result<()>;
     fn receive(&mut self) -> Option<TextCue>;
+}
+
+pub trait SubtitleEncoder {
+    fn start(&mut self, desc: SubtitleDescription) -> anyhow::Result<SubtitleInfo>;
+    fn feed(&mut self, cue: TextCue) -> anyhow::Result<()>;
+    fn receive(&mut self) -> Option<Packet>;
 }

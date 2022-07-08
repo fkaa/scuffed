@@ -1,5 +1,8 @@
-use super::{TextPosition, TextAlign, TextFill, TextAlpha, ColorType, SubtitleDecoder, TextCue, TextPart, TextStyle};
-use crate::{Packet, SubtitleInfo};
+use super::{
+    ColorType, SubtitleDecoder, SubtitleInfo, TextAlign, TextAlpha, TextCue, TextFill, TextPart,
+    TextPosition, TextStyle,
+};
+use crate::Packet;
 
 use logos::{Lexer, Logos};
 
@@ -22,6 +25,12 @@ impl AssDecoder {
             styles: Vec::new(),
             cues: VecDeque::new(),
         }
+    }
+}
+
+impl Default for AssDecoder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -70,13 +79,15 @@ fn parse_ass_text(text: &str) -> Vec<TextPart> {
             Ass::Text(text) => {
                 /*let text = text.replace("\\N", "\n");
                 let text = text.replace("\\n", "\n");*/
-                
+
                 parts.push(TextPart::Text(text.to_string()));
-            },
+            }
             Ass::Italic(on) => parts.push(TextPart::Italic(on)),
             Ass::Fill(pos) => parts.push(TextPart::Fill(pos)),
             Ass::Alpha(pos) => parts.push(TextPart::Alpha(pos)),
             Ass::Position(pos) => parts.push(TextPart::Position(pos)),
+            Ass::LineBreak => parts.push(TextPart::LineBreak),
+            Ass::SmartBreak => parts.push(TextPart::SmartBreak),
             _ => {}
         }
     }
@@ -129,7 +140,6 @@ fn text_fill<'a>(lex: &mut Lexer<'a, Ass<'a>>) -> Option<TextFill> {
         _ => return None,
     };
 
-    dbg!(&span[hex_offset..(span.len() - 1)]);
     let color = u32::from_str_radix(&span[hex_offset..(span.len() - 1)], 16).ok()?;
 
     Some(TextFill(kind, color))
@@ -147,7 +157,6 @@ fn text_alpha<'a>(lex: &mut Lexer<'a, Ass<'a>>) -> Option<TextAlpha> {
         _ => return None,
     };
 
-    dbg!(&span[hex_offset..(span.len() - 1)]);
     let alpha = u8::from_str_radix(&span[hex_offset..(span.len() - 1)], 16).ok()?;
 
     Some(TextAlpha(kind, alpha))
@@ -162,6 +171,27 @@ fn text_pos<'a>(lex: &mut Lexer<'a, Ass<'a>>) -> Option<TextPosition> {
     let y = y.parse().ok()?;
 
     Some(TextPosition(x, y))
+}
+
+fn strip_last<'a>(lex: &mut Lexer<'a, AssText<'a>>) -> Option<&'a str> {
+    let span = lex.slice();
+
+    Some(&span[..span.len() - 1])
+}
+
+#[derive(Debug, PartialEq, Logos)]
+pub enum AssText<'a> {
+    #[error]
+    Error,
+
+    #[regex(r"\\n", priority=50)]
+    LineBreak,
+
+    #[regex(r"\\N", priority=50)]
+    SmartBreak,
+
+    #[regex(r"[^\\]*", priority=25)]
+    Text(&'a str),
 }
 
 #[derive(Debug, PartialEq, Logos)]
@@ -192,6 +222,8 @@ pub enum Ass<'a> {
     Position(TextPosition),
 
     Text(&'a str),
+    LineBreak,
+    SmartBreak,
 
     Underline(bool),
     Strikeout(bool),
@@ -202,6 +234,7 @@ struct AssParser<'a> {
     src: &'a str,
     in_braces: bool,
     lexer: Lexer<'a, Ass<'a>>,
+    text_lexer: Lexer<'a, AssText<'a>>,
 }
 
 impl<'a> AssParser<'a> {
@@ -210,6 +243,7 @@ impl<'a> AssParser<'a> {
             src,
             in_braces: false,
             lexer: Ass::lexer(""),
+            text_lexer: AssText::lexer(""),
         }
     }
 }
@@ -219,11 +253,20 @@ impl<'a> Iterator for AssParser<'a> {
 
     fn next(&mut self) -> Option<Ass<'a>> {
         loop {
+            if let Some(part) = self.text_lexer.next() {
+                match part {
+                    AssText::LineBreak => return Some(Ass::LineBreak),
+                    AssText::SmartBreak => return Some(Ass::SmartBreak),
+                    AssText::Text(txt) => return Some(Ass::Text(txt)),
+                    _ => {}
+                }
+            }
+
             if let Some(part) = self.lexer.next() {
                 return Some(part);
             }
 
-            if self.src.len() == 0 {
+            if self.src.is_empty() {
                 return None;
             }
 
@@ -232,8 +275,10 @@ impl<'a> Iterator for AssParser<'a> {
                     self.in_braces = true;
                     self.src = begin;
 
-                    if text.len() > 0 {
-                        return Some(Ass::Text(text));
+                    if !text.is_empty() {
+                        self.text_lexer = AssText::lexer(text);
+                        continue;
+                        // return Some(Ass::Text(text));
                     }
                 }
             }
@@ -248,10 +293,8 @@ impl<'a> Iterator for AssParser<'a> {
                 }
             }
 
-            let ret = Ass::Text(self.src);
+            self.text_lexer = AssText::lexer(self.src);
             self.src = &self.src[..0];
-
-            return Some(ret);
         }
     }
 }
@@ -264,6 +307,10 @@ mod test {
     use test_case::test_case;
 
     #[test_case("", &[])]
+    #[test_case(r"Yes..\n\nNo!", &[Text("Yes.."), LineBreak, LineBreak, Text("No!")])]
+    #[test_case(r"\n", &[LineBreak])]
+    #[test_case(r"\N", &[SmartBreak])]
+    #[test_case(r"First line\nNext line", &[Text("First line"), LineBreak, Text("Next line")])]
     #[test_case(
         r"{\fs16\c&H00ff00&\an8}Whammy!",
         &[
@@ -325,4 +372,24 @@ mod test {
 
         assert_eq!(&tokens[..], expected);
     }
+
+    #[test_case(
+        r"abc\ndef\Nghj",
+        &[
+            AssText::Text("abc"),
+            AssText::LineBreak,
+            AssText::Text("def"),
+            AssText::SmartBreak,
+            AssText::Text("ghj"),
+        ])]
+    fn parse_text(ass: &str, expected: &[AssText]) {
+        eprintln!("{}", ass);
+
+        let lexer = AssText::lexer(ass);
+
+        let tokens = lexer.collect::<Vec<_>>();
+
+        assert_eq!(&tokens[..], expected);
+    }
+
 }

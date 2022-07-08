@@ -3,7 +3,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::{
-    codec::nal::{frame_nal_units, BitstreamFraming},
+    codec::{
+        nal::{frame_nal_units, BitstreamFraming},
+        SubtitleInfo,
+    },
     Fraction, Span,
 };
 
@@ -154,33 +157,6 @@ pub struct AudioInfo {
     pub sample_bpp: u32,
     pub sound_type: SoundType,
     pub codec: AudioCodec,
-}
-
-#[derive(Clone, Debug)]
-pub struct AssCodec {
-    pub header: String,
-}
-
-#[derive(Clone, Debug)]
-pub enum SubtitleCodec {
-    Ass(AssCodec),
-}
-
-/// Information about a piece of subtitle media
-#[derive(Clone)]
-pub struct SubtitleInfo {
-    pub codec: SubtitleCodec,
-}
-
-impl fmt::Debug for SubtitleInfo {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.codec {
-            SubtitleCodec::Ass(a) => {
-                write!(f, "{}", a.header)?;
-                Ok(())
-            }
-        }
-    }
 }
 
 /// The kind of media
