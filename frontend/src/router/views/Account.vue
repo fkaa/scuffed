@@ -67,19 +67,19 @@ const { isSupported, copy, copied } = useClipboard()
         />
 
         <button data-title-bottom="Show stream key" @click="show = !show">
-          <Icon v-if="show" code="visibility_off" size="2" />
-          <Icon v-else code="visibility" size="2" />
+          <Icon v-if="show" code="visibility_off" size="2.4" />
+          <Icon v-else code="visibility" size="2.4" />
         </button>
 
         <button data-title-bottom="Copy stream key" v-if="isSupported" @click="copy(key)">
-          <Icon code="content_copy" size="2" />
+          <Icon code="content_copy" size="2.4" />
           <span class="copied-label" :class="{ active: copied }">Copied!</span>
         </button>
 
         <button data-title-bottom="Generate new stream key" class="btn-generate" @click="generate">
-          <Icon v-if="loading" class="rotate" code="refresh" size="2" />
+          <Icon v-if="loading" class="rotate" code="refresh" size="2.4" />
 
-          <Icon v-else code="refresh" size="2" />
+          <Icon v-else code="refresh" size="2.4" />
 
           <span class="copied-label info" :class="{ active: done }">Completed!</span>
         </button>

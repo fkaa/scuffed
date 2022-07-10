@@ -16,13 +16,5 @@
         <img src="/images/logo2.png" alt="" />
       </div>
     </div>
-    <!-- 
-    <Icon code="play_arrow" />
-    <Icon code="pause" />
-    <Icon code="fullscreen" />
-    <Icon code="fullscreen_exit" />
-    <Icon code="volume_up" />
-    <Icon code="volume_off" />
-    <Icon code="drag_handle" /> -->
   </div>
 </template>

@@ -23,7 +23,11 @@ watch(
 
 <template>
   <div class="navigation" :class="{ active: open }" @click.self="open = false">
-    <button class="nav-button" @click="open = !open" :class="{ active: open }"></button>
+    <button
+      class="nav-button"
+      @click="open = !open"
+      :class="{ active: open, 'has-shadow': route.name === 'Stream' }"
+    ></button>
 
     <div class="nav-content">
       <router-link :to="{ name: 'Main' }">Home</router-link>

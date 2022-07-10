@@ -15,6 +15,14 @@
     height: 40px;
     z-index: 5000;
 
+    &.has-shadow {
+      &:after,
+      &:before {
+        background-color: rgb(var(--color-text-white));
+        box-shadow: 0 1px 4px rgb(var(--color-dark), 0.5);
+      }
+    }
+
     &.active {
       &:after {
         @include rotate(45deg);
