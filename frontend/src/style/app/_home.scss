@@ -1,0 +1,53 @@
+.home {
+  display: block;
+
+  .home-hero {
+    p {
+      @include font();
+      font-size: 3.2rem;
+    }
+  }
+
+  .home-graphic {
+    img {
+      display: block;
+      max-width: 482px;
+    }
+  }
+
+  .home-container {
+    // display: block;
+    @include flex($justify: space-between);
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 96px;
+    max-width: 1480px;
+  }
+}
+
+.logo {
+  @include font(700);
+  font-size: 15rem;
+  color: rgb(var(--color-text));
+
+  &.logo-small {
+    font-size: 3.6rem;
+  }
+}
+
+.brand-gradient {
+  font-size: inherit;
+
+  background: linear-gradient(
+    135deg,
+    rgb(var(--color-skin)),
+    rgb(var(--color-skin)) 30%,
+    rgb(var(--color-blue)) 30%,
+    rgb(var(--color-blue)) 60%,
+    rgb(var(--color-dark)) 60%,
+    rgb(var(--color-dark)) 100%
+  );
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

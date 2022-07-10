@@ -1,0 +1,37 @@
+// https://google-webfonts-helper.herokuapp.com/fonts
+
+@font-face {
+  font-family: "Helvetica LT W01 Roman";
+  font-style: normal;
+  src: url("/fonts/1489436/89294146-207c-4803-91fe-338f0d0094bd.woff2") format("woff2"),
+    url("/fonts/1489436/57055fe4-c2d3-4287-bac2-eece43fdcbd3.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Helvetica LT W01 Bold";
+  font-style: bold;
+  src: url("/fonts/1489452/7ce0a2f5-eb00-46aa-919c-5b3f3667646c.woff2") format("woff2"),
+    url("/fonts/1489452/cad22c74-45b4-4c49-9e6a-0cd3768a7bc7.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Helvetica LT W01 Black";
+  font-style: normal;
+  src: url("/fonts/1489468/140cbf94-b441-4980-b031-0a614cdee9a8.woff2") format("woff2"),
+    url("/fonts/1489468/c13f2d0e-112f-4829-96e7-573d38f83066.woff") format("woff");
+}
+
+@mixin font($font: 400) {
+  @if $font == 400 {
+    font-family: "Helvetica LT W01 Roman", sans-serif;
+    font-weight: 400;
+  }
+  @if $font == 700 {
+    font-family: "Helvetica LT W01 Bold", sans-serif;
+    font-weight: 700;
+  }
+  @if $font == 900 {
+    font-family: "Helvetica LT W01 Black", sans-serif;
+    font-weight: 900;
+  }
+}

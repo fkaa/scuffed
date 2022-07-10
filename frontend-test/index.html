@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<title>Scuffed</title>
+<link rel="stylesheet" href="style.css" />
+<meta charset="utf-8" />
+
+<nav>
+  <h1>Scuffed</h1>
+  <a href="#">Account</a>
+  <a href="#">Help</a>
+</nav>
+
+<div class="a">
+  <div class="b">
+    <div id="streams"></div>
+
+    <script src="snapshot.js"></script>
+    <script>
+      let decoder = new VideoDecoder(180, 120);
+
+      async function loadStreams() {
+        let data = await fetch("/api/streams/").then((res) => res.json());
+
+        await populateStreams(data);
+
+        setTimeout(loadStreams, 5000);
+      }
+
+      loadStreams();
+
+      async function populateStreams(streams) {
+        let streamsContainer = document.getElementById("streams");
+        while (streamsContainer.lastChild) {
+          streamsContainer.removeChild(streamsContainer.lastChild);
+        }
+        let title = document.createElement("h1");
+        title.innerText = streams.length > 0 ? "Streams" : "No streams! :(";
+        streamsContainer.appendChild(title);
+
+        for (let i = 0; i < streams.length; i++) {
+          let streamDomElement = createStreamElement(streams[i]);
+          streamsContainer.appendChild(streamDomElement);
+        }
+
+        let images = document.querySelectorAll(".snapshot");
+        for (let i = 0; i < images.length; i++) {
+          let img = images[i];
+          let stream = img.getAttribute("stream-id");
+
+          let snapshot = await decoder.decode(`/api/streams/${stream}/snapshot`);
+          if (snapshot) {
+            img.src = snapshot;
+          }
+        }
+      }
+
+      function createStreamElement(stream) {
+        let link = document.createElement("a");
+        link.setAttribute("stream-id", stream.name);
+        link.class = "stream";
+        link.href = `/${stream.name}`;
+        let figure = document.createElement("figure");
+        let img = document.createElement("img");
+        img.src = "placeholder.gif";
+        img.setAttribute("stream-id", stream.name);
+        img.classList.add("snapshot");
+        let caption = document.createElement("figcaption");
+        caption.innerText = `${stream.name} | ${stream.viewers} viewers`;
+
+        figure.appendChild(img);
+        figure.appendChild(caption);
+
+        link.appendChild(figure);
+
+        return link;
+      }
+    </script>
+  </div>
+</div>

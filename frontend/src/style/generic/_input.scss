@@ -1,0 +1,63 @@
+.fake-input {
+  position: absolute;
+  left: -9999px;
+}
+
+.form-input {
+  display: block;
+  margin-bottom: 24px;
+  position: relative;
+
+  &.input-error {
+    input {
+      border-color: rgb(var(--color-red));
+    }
+  }
+
+  label {
+    @include font(400);
+    position: absolute;
+    top: -8px;
+    left: 16px;
+    z-index: 10;
+    padding: 0 16px;
+    height: 16px;
+    line-height: 16px;
+    background-color: rgb(var(--color-bg));
+    font-size: 1.4rem;
+  }
+
+  input {
+    @include font(400);
+    height: 100%;
+    width: 100%;
+    font-size: 1.8rem;
+    height: 56px;
+    line-height: 56px;
+    padding: 0 32px;
+    border: 2px solid rgb(var(--color-dark));
+    outline-color: rgb(var(--color-blue));
+    z-index: 5;
+    background-color: rgb(var(--color-bg));
+  }
+
+  .input-error-list {
+    display: block;
+    margin-top: 4px;
+
+    p {
+      margin-bottom: 4px;
+      font-size: 1.4rem;
+      color: rgb(var(--color-red));
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+::placeholder {
+  font-size: 1.4rem;
+  color: rgba(var(--color-text), 0.75);
+}

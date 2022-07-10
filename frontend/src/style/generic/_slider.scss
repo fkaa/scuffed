@@ -1,0 +1,37 @@
+.input-slider {
+  display: block;
+  width: 192px;
+  height: 20px;
+
+  input[type="range"] {
+    @include radius(3px);
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    background-color: rgb(var(--color-bg));
+
+    &:hover,
+    &:active {
+      &::-moz-range-thumb,
+      &::-webkit-slider-thumb {
+        background-color: rgb(var(--color-blue));
+
+        transform: scale(1.2);
+      }
+    }
+
+    &::-moz-range-thumb,
+    &::-webkit-slider-thumb {
+      @include t();
+      @include radius(100%);
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background-color: rgb(var(--color-bg));
+      cursor: pointer;
+      border: none;
+      transform: scale(1);
+    }
+  }
+}

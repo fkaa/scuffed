@@ -1,0 +1,100 @@
+.stream {
+  display: block;
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  background-color: rgb(var(--color-dark));
+  z-index: 1;
+
+  .stream-video {
+    @include flex($gap: 0, $justify: center, $align: center, $direction: column);
+    height: 100%;
+    width: 100%;
+
+    h2 {
+      @include font(700);
+      font-size: 8rem;
+    }
+
+    img {
+      margin-bottom: 64px;
+    }
+
+    video {
+      background-color: rgb(var(--color-dark));
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  .stream-controls {
+    @include t();
+    @include flex();
+    padding: 24px 32px 16px;
+    position: absolute;
+    inset: 0;
+    top: unset;
+    z-index: 50;
+    background: linear-gradient(180deg, rgba(var(--color-dark), 0), rgba(var(--color-dark), 0.6));
+    transform: translateY(40px);
+    opacity: 0;
+    pointer-events: none;
+
+    &.active {
+      pointer-events: all;
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .stream-button {
+    display: block;
+    width: 48px;
+    height: 48px;
+    line-height: auto;
+    text-align: center;
+    position: relative;
+    z-index: 5;
+
+    &.exit {
+      position: absolute;
+      left: 40px;
+      top: 40px;
+    }
+
+    &:after {
+      content: "";
+      @include radius(100%);
+      @include t();
+      position: absolute;
+      inset: 0;
+      background-color: rgba(var(--color-text-white), 0.65);
+      transform: scale(0.8);
+      z-index: -1;
+      opacity: 0;
+    }
+
+    &:hover {
+      .material-icons {
+        color: rgb(var(--color-white));
+        text-shadow: none;
+      }
+
+      &:after {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .material-icons {
+      @include t();
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      color: rgb(var(--color-text-white));
+      text-shadow: 0 1px 4px rgb(var(--color-dark), 0.5);
+    }
+  }
+}
