@@ -13,19 +13,22 @@ use crate::{
 
 // Wonderful macro taken from https://github.com/scottlamb/retina/ examples
 macro_rules! write_box {
-    ($buf:expr, $fourcc:expr, $b:block) => {{
-        let _: &mut bytes::BytesMut = $buf; // type-check.
-        let pos_start = $buf.len();
-        let fourcc: &[u8; 4] = $fourcc;
-        $buf.extend_from_slice(&[0, 0, 0, 0, fourcc[0], fourcc[1], fourcc[2], fourcc[3]]);
-        let r = {
-            $b;
-        };
-        let pos_end = $buf.len();
-        let len = pos_end.checked_sub(pos_start).unwrap();
-        $buf[pos_start..pos_start + 4].copy_from_slice(&u32::try_from(len)?.to_be_bytes()[..]);
-        r
-    }};
+    ($buf:expr, $fourcc:expr, $b:block) => {
+        #[allow(clippy::unnecessary_mut_passed)]
+        {
+            let _: &mut bytes::BytesMut = $buf; // type-check.
+            let pos_start = $buf.len();
+            let fourcc: &[u8; 4] = $fourcc;
+            $buf.extend_from_slice(&[0, 0, 0, 0, fourcc[0], fourcc[1], fourcc[2], fourcc[3]]);
+            let r = {
+                $b;
+            };
+            let pos_end = $buf.len();
+            let len = pos_end.checked_sub(pos_start).unwrap();
+            $buf[pos_start..pos_start + 4].copy_from_slice(&u32::try_from(len)?.to_be_bytes()[..]);
+            r
+        }
+    };
 }
 
 pub struct FragmentedMp4Muxer {
@@ -341,7 +344,7 @@ fn write_video_trak(buf: &mut BytesMut, stream: &Track) -> anyhow::Result<()> {
                         buf.put_u32(0); // version
                         buf.put_u32(1); // entry_count
 
-                        write_video_sample_entry(buf, &info)?;
+                        write_video_sample_entry(buf, info)?;
                     });
                     write_box!(buf, b"stss", {
                         buf.put_u32(0); // version

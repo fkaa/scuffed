@@ -56,6 +56,8 @@ fn parse_bitstream_length_field<const N: usize, F: Fn([u8; N]) -> usize>(
         let len_bytes = <[u8; N]>::try_from(&len_bytes[..]).unwrap();
         let nal_unit_len = read(len_bytes); // BigEndian::read_u32(&nal_units[i..]) as usize;
 
+        dbg!(len_bytes, nal_unit_len);
+
         i += N;
 
         let nal_unit = bitstream.slice(i..(i + nal_unit_len));
@@ -108,10 +110,10 @@ fn parse_bitstream_start_codes(bitstream: Span) -> Vec<Span> {
 pub fn parse_bitstream(bitstream: Span, source: BitstreamFraming) -> Vec<Span> {
     match source {
         BitstreamFraming::TwoByteLength => {
-            parse_bitstream_length_field::<2, _>(bitstream, |b| u16::from_le_bytes(b) as usize)
+            parse_bitstream_length_field::<2, _>(bitstream, |b| u16::from_be_bytes(b) as usize)
         }
         BitstreamFraming::FourByteLength => {
-            parse_bitstream_length_field::<4, _>(bitstream, |b| u32::from_le_bytes(b) as usize)
+            parse_bitstream_length_field::<4, _>(bitstream, |b| u32::from_be_bytes(b) as usize)
         }
         BitstreamFraming::FourByteStartCode => parse_bitstream_start_codes(bitstream),
     }
@@ -174,6 +176,7 @@ pub fn convert_bitstream(
     }
 
     let nal_units = parse_bitstream(bitstream, source);
+    dbg!(&nal_units);
 
     frame_nal_units(&nal_units[..], target)
 }
@@ -349,7 +352,12 @@ mod test {
     }
 
     #[test_case(&[&FS, &[5], b"a", &FS, &[1], b"b"], FourByteStartCode, FourByteLength, &[&len(2), &[5], b"a", &len(2), &[1], b"b"])]
-    #[test_case(&[&len(2), &[5], b"a", &len(2), &[1], b"b"], FourByteLength, FourByteStartCode, &[&FS, &[5], b"a", &FS, &[1], b"b"])]
+    #[test_case(
+        &[&len(2), &[5], b"a", &len(2), &[1], b"b"],
+        FourByteLength,
+        FourByteStartCode,
+        &[&FS, &[5], b"a", &FS, &[1], b"b"]
+    )]
     fn convert_bitstream(
         bitstream: &[&[u8]],
         source: BitstreamFraming,

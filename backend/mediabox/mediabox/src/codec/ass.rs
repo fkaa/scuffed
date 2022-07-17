@@ -1,12 +1,19 @@
 use super::{
-    ColorType, SubtitleDecoder, SubtitleInfo, TextAlign, TextAlpha, TextCue, TextFill, TextPart,
-    TextPosition, TextStyle,
+    ColorType, SubtitleDecoder, SubtitleDecoderMetadata, SubtitleInfo, TextAlign, TextAlpha,
+    TextCue, TextFill, TextPart, TextPosition, TextStyle,
 };
 use crate::Packet;
 
 use logos::{Lexer, Logos};
 
 use std::{borrow::Borrow, collections::VecDeque, str};
+
+const DECODE_META: SubtitleDecoderMetadata = SubtitleDecoderMetadata {
+    name: "ass",
+    create: AssDecoder::create,
+};
+
+inventory::submit!(DECODE_META);
 
 #[derive(Debug, thiserror::Error)]
 pub enum AssError {
@@ -25,6 +32,10 @@ impl AssDecoder {
             styles: Vec::new(),
             cues: VecDeque::new(),
         }
+    }
+
+    fn create() -> Box<dyn SubtitleDecoder> {
+        Box::new(Self::new())
     }
 }
 
@@ -77,9 +88,6 @@ fn parse_ass_text(text: &str) -> Vec<TextPart> {
     for part in parser {
         match part {
             Ass::Text(text) => {
-                /*let text = text.replace("\\N", "\n");
-                let text = text.replace("\\n", "\n");*/
-
                 parts.push(TextPart::Text(text.to_string()));
             }
             Ass::Italic(on) => parts.push(TextPart::Italic(on)),
@@ -184,13 +192,13 @@ pub enum AssText<'a> {
     #[error]
     Error,
 
-    #[regex(r"\\n", priority=50)]
+    #[regex(r"\\n", priority = 50)]
     LineBreak,
 
-    #[regex(r"\\N", priority=50)]
+    #[regex(r"\\N", priority = 50)]
     SmartBreak,
 
-    #[regex(r"[^\\]*", priority=25)]
+    #[regex(r"[^\\]*", priority = 25)]
     Text(&'a str),
 }
 
@@ -358,9 +366,9 @@ mod test {
             Text("Hello!")
         ])]
     #[test_case(
-        r"{\pos(123.456,3.14)}Position",
+        r"{\pos(123.456,5.0)}Position",
         &[
-            Position(TextPosition(123.456, 3.14)),
+            Position(TextPosition(123.456, 5.0)),
             Text("Position")
         ])]
     fn parse(ass: &str, expected: &[Ass]) {
@@ -391,5 +399,4 @@ mod test {
 
         assert_eq!(&tokens[..], expected);
     }
-
 }

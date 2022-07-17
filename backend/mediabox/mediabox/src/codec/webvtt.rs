@@ -5,6 +5,12 @@ use crate::{Fraction, MediaInfo, MediaKind, Track};
 use super::*;
 
 const WEBVTT_TIMEBASE: Fraction = Fraction::new(1, 1000);
+const META: SubtitleEncoderMetadata = SubtitleEncoderMetadata {
+    name: "webvtt",
+    create: WebVttEncoder::create,
+};
+
+inventory::submit!(META);
 
 pub struct WebVttEncoder {
     track: Option<Track>,
@@ -19,6 +25,10 @@ impl WebVttEncoder {
             queue: VecDeque::new(),
             cue_index: 0,
         }
+    }
+
+    fn create() -> Box<dyn SubtitleEncoder> {
+        Box::new(Self::new())
     }
 }
 
@@ -40,7 +50,7 @@ impl SubtitleEncoder for WebVttEncoder {
                 name: "webvtt",
                 kind: MediaKind::Subtitle(info.clone()),
             }),
-            timebase: Fraction::new(1, 1000),
+            timebase: WEBVTT_TIMEBASE,
         };
 
         self.track = Some(track);
@@ -52,8 +62,7 @@ impl SubtitleEncoder for WebVttEncoder {
         let time = cue.time;
         let timebase = time.timebase;
         let begin_seconds = time.pts as f32 / timebase.denominator as f32;
-        let duration_seconds = 
-            time
+        let duration_seconds = time
             .duration
             .ok_or_else(|| anyhow::anyhow!("Expected duration for subtitle"))?
             as f32
@@ -67,7 +76,6 @@ impl SubtitleEncoder for WebVttEncoder {
 
         writeln!(&mut text, "{}", self.cue_index)?;
         writeln!(&mut text, "{begin} --> {end}")?;
-        write!(&mut text, "- ")?;
         for part in cue.text {
             match part {
                 TextPart::Text(txt) => {
@@ -83,9 +91,10 @@ impl SubtitleEncoder for WebVttEncoder {
                         }
                     }
                 }
-                /* TextPart::LineBreak | */TextPart::SmartBreak => {
-                    write!(&mut text, "\n- ")?;
+                TextPart::SmartBreak => {
+                    text.push(b'\n');
                 }
+                // TODO: add styling
                 _ => {}
             }
         }
@@ -134,7 +143,7 @@ impl fmt::Display for WebVttTime {
 mod test {
     use super::*;
     use test_case::test_case;
-    
+
     #[test_case(0.001, "00:00:00.001")]
     #[test_case(0.01, "00:00:00.010")]
     #[test_case(0.1, "00:00:00.100")]

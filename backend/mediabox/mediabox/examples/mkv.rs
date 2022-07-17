@@ -19,12 +19,24 @@ async fn main() {
         eprintln!("#{}: {:?}", track.id, track.info);
     }
 
-    let subtitle_id = movie
-        .tracks
-        .iter()
-        .find(|t| t.info.subtitle().is_some())
-        .map(|t| t.id)
-        .unwrap();
+    let (subtitle_id, _codec) = movie.subtitles().next().unwrap();
+
+    movie
+        .subtitles()
+        .filter_map(|(id, codec)| {
+            if codec != "webvtt" {
+                Some((
+                    id,
+                    Transcode::Subtitles {
+                        from: codec,
+                        to: "webvtt",
+                    },
+                ))
+            } else {
+                None
+            }
+        })
+        .collect::<HashMap<u32, Transcode>>();
 
     // println!("pts,dts,keyframe,stream,length");
     loop {
@@ -37,15 +49,5 @@ async fn main() {
                 String::from_utf8(pkt.buffer.to_slice().into_owned()).unwrap()
             );
         }
-
-        /*print!("{},", pkt.time.pts);
-        if let Some(dts) = pkt.time.dts {
-            print!("{dts},");
-        } else {
-            print!(",");
-        }
-        print!("{},", pkt.key);
-        print!("{},", pkt.stream.id);
-        println!("{}", pkt.buffer.len());*/
     }
 }

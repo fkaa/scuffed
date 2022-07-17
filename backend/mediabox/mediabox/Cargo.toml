@@ -3,6 +3,10 @@ name = "mediabox"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+path = "src/main.rs"
+name = "mediabox"
+
 [dependencies]
 anyhow = "1.0.57"
 bytes = "1.1.0"
@@ -18,6 +22,9 @@ async-trait = "0.1.56"
 thiserror = "1.0.31"
 downcast = "0.11.0"
 logos = "0.12.1"
+aho-corasick = "0.7.18"
+inventory = "0.3.0"
+lexopt = "0.2.1"
 
 [dev-dependencies]
 env_logger = "0.9.0"

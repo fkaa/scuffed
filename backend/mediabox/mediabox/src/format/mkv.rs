@@ -1,3 +1,4 @@
+use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
 use h264_reader::avcc::AvcDecoderConfigurationRecord;
 use log::*;
@@ -11,6 +12,8 @@ use crate::{
     AacCodec, AudioCodec, AudioInfo, Fraction, MediaInfo, MediaKind, MediaTime, Packet, SoundType,
     Track,
 };
+
+use super::{DemuxerMetadata, ProbeResult};
 
 macro_rules! ebml {
     ($io:expr, $size:expr, $( $pat:pat_param => $blk:block ),* ) => {
@@ -551,7 +554,40 @@ impl Demuxer for MatroskaDemuxer {
     async fn stop(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
+
+    fn create(io: Io) -> Box<dyn Demuxer> {
+        Box::new(Self::new(io))
+    }
+
+    fn probe(data: &[u8]) -> ProbeResult {
+        let patterns = &[
+            &EBML_HEADER.to_be_bytes()[..],
+            b"matroska",
+            &SEGMENT.to_be_bytes()[..],
+            &CLUSTER.to_be_bytes()[..],
+        ];
+        let ac = AhoCorasick::new(patterns);
+
+        let mut score = 0f32;
+        for mat in ac.find_iter(data) {
+            score += 0.25;
+        }
+
+        if score >= 1.0 {
+            ProbeResult::Yup
+        } else {
+            ProbeResult::Maybe(score)
+        }
+    }
 }
+
+pub const DEMUX_META: DemuxerMetadata = DemuxerMetadata {
+    name: "mkv",
+    create: MatroskaDemuxer::create,
+    probe: MatroskaDemuxer::probe,
+};
+
+inventory::submit!(DEMUX_META);
 
 #[cfg(test)]
 mod test {

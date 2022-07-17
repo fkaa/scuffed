@@ -1,11 +1,12 @@
+use anyhow::Context;
 use tokio::{
     fs::File,
-    io::{AsyncRead, AsyncSeek, AsyncWrite, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncSeek, AsyncWrite, BufReader},
 };
 
 use downcast::{downcast, Any};
 
-use std::{io::SeekFrom, path::Path};
+use std::{fmt, io::SeekFrom, path::Path};
 
 use crate::Span;
 
@@ -50,6 +51,9 @@ pub enum IoError {
 
     #[error("{0}")]
     Io(#[from] std::io::Error),
+
+    #[error("{0}")]
+    Misc(#[from] anyhow::Error),
 }
 
 pub struct Io {
@@ -65,12 +69,23 @@ impl Io {
         }
     }
 
-    pub async fn open_file<P: AsRef<Path>>(path: P) -> Result<Self, IoError> {
+    pub async fn create_file<P: AsRef<Path>>(path: P) -> Result<Self, IoError> {
         let file = File::create(path).await?;
 
         Ok(Io {
             writer: Some(Writer::Seekable(Box::new(file))),
             reader: None,
+        })
+    }
+
+    pub async fn open_file<P: AsRef<Path> + fmt::Debug>(path: P) -> Result<Self, IoError> {
+        let file = File::open(&path)
+            .await
+            .with_context(|| format!("Failed to open file {path:?}"))?;
+
+        Ok(Io {
+            writer: None,
+            reader: Some(Reader::Seekable(BufReader::new(Box::new(file)))),
         })
     }
 
@@ -97,13 +112,13 @@ impl Io {
             Writer::Seekable(writer) => {
                 // TODO: replace with write_vectored
                 for span in span.spans() {
-                    writer.write_all(&span).await?
+                    writer.write_all(span).await?
                 }
             }
             Writer::Stream(writer) => {
                 // TODO: replace with write_vectored
                 for span in span.spans() {
-                    writer.write_all(&span).await?
+                    writer.write_all(span).await?
                 }
             }
         };
@@ -144,6 +159,17 @@ impl Io {
         };
 
         Ok(())
+    }
+
+    pub async fn read_probe(&mut self) -> Result<&[u8], IoError> {
+        let reader = self.reader.as_mut().ok_or(IoError::NotWriteable)?;
+
+        let inner_bytes = match reader {
+            Reader::Seekable(reader) => reader.fill_buf().await?,
+            Reader::Stream(reader) => reader.fill_buf().await?,
+        };
+
+        Ok(inner_bytes)
     }
 
     pub async fn skip(&mut self, amt: u64) -> Result<(), IoError> {

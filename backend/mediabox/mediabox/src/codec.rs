@@ -124,13 +124,41 @@ pub enum TextPart {
     SmartBreak,
 }
 
-pub trait SubtitleDecoder {
+#[derive(Clone)]
+pub struct SubtitleDecoderMetadata {
+    pub(crate) name: &'static str,
+    create: fn() -> Box<dyn SubtitleDecoder>,
+}
+
+impl SubtitleDecoderMetadata {
+    pub fn create(&self) -> Box<dyn SubtitleDecoder> {
+        (self.create)()
+    }
+}
+
+inventory::collect!(SubtitleDecoderMetadata);
+
+pub trait SubtitleDecoder: Send + Sync {
     fn start(&mut self, info: &SubtitleInfo) -> anyhow::Result<()>;
     fn feed(&mut self, packet: Packet) -> anyhow::Result<()>;
     fn receive(&mut self) -> Option<TextCue>;
 }
 
-pub trait SubtitleEncoder {
+#[derive(Clone)]
+pub struct SubtitleEncoderMetadata {
+    pub(crate) name: &'static str,
+    create: fn() -> Box<dyn SubtitleEncoder>,
+}
+
+impl SubtitleEncoderMetadata {
+    pub fn create(&self) -> Box<dyn SubtitleEncoder> {
+        (self.create)()
+    }
+}
+
+inventory::collect!(SubtitleEncoderMetadata);
+
+pub trait SubtitleEncoder: Send + Sync {
     fn start(&mut self, desc: SubtitleDescription) -> anyhow::Result<SubtitleInfo>;
     fn feed(&mut self, cue: TextCue) -> anyhow::Result<()>;
     fn receive(&mut self) -> Option<Packet>;
