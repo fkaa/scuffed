@@ -5,6 +5,7 @@ use tokio::{
 };
 
 use downcast::{downcast, Any};
+use fluent_uri::Uri;
 
 use std::{fmt, io::SeekFrom, path::Path};
 
@@ -49,6 +50,12 @@ pub enum IoError {
     #[error("Stream is not seekable")]
     NotSeekable,
 
+    #[error("Unsupported URI scheme {0:?}")]
+    UnsupportedScheme(String),
+
+    #[error("Failed to parse URI: {0}")]
+    Uri(#[from] fluent_uri::ParseError),
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 
@@ -57,33 +64,62 @@ pub enum IoError {
 }
 
 pub struct Io {
+    uri: Uri<String>,
     writer: Option<Writer>,
     reader: Option<Reader>,
+}
+
+fn uri_from_path(path: &Path) -> Result<Uri<String>, IoError> {
+    let uri = path
+        .to_str()
+        .map(|s| s.to_string())
+        .unwrap_or(String::new());
+    let uri = Uri::parse_from(uri).map_err(|e| e.1)?;
+
+    Ok(uri)
 }
 
 impl Io {
     pub fn null() -> Self {
         Io {
+            uri: Uri::parse_from(String::new()).unwrap(),
             writer: None,
             reader: None,
         }
     }
 
+    pub async fn open(uri: String) -> Result<Self, IoError> {
+        let uri = Uri::parse_from(uri).map_err(|e| e.1)?;
+
+        match uri.scheme().map(|s| s.as_str()) {
+            Some("file") | None => {}
+            Some(scheme) => {
+                return Err(IoError::UnsupportedScheme(scheme.to_string()));
+            }
+        }
+
+        todo!()
+    }
+
     pub async fn create_file<P: AsRef<Path>>(path: P) -> Result<Self, IoError> {
+        let uri = uri_from_path(path.as_ref())?;
         let file = File::create(path).await?;
 
         Ok(Io {
+            uri,
             writer: Some(Writer::Seekable(Box::new(file))),
             reader: None,
         })
     }
 
     pub async fn open_file<P: AsRef<Path> + fmt::Debug>(path: P) -> Result<Self, IoError> {
+        let uri = uri_from_path(path.as_ref())?;
         let file = File::open(&path)
             .await
             .with_context(|| format!("Failed to open file {path:?}"))?;
 
         Ok(Io {
+            uri,
             writer: None,
             reader: Some(Reader::Seekable(BufReader::new(Box::new(file)))),
         })
@@ -91,6 +127,7 @@ impl Io {
 
     pub fn from_stream(writer: Box<dyn Write>) -> Self {
         Io {
+            uri: Uri::parse_from(String::new()).unwrap(),
             writer: Some(Writer::Stream(writer)),
             reader: None,
         }
@@ -98,6 +135,7 @@ impl Io {
 
     pub fn from_reader(reader: Box<dyn Read>) -> Self {
         Io {
+            uri: Uri::parse_from(String::new()).unwrap(),
             writer: None,
             reader: Some(Reader::Stream(BufReader::new(reader))),
         }
@@ -222,6 +260,12 @@ impl Io {
 mod test {
     use super::*;
     use test_case::test_case;
+
+    #[tokio::test]
+    async fn test() {
+        let uri = Uri::parse_from(String::from("../test/foo")).unwrap();
+        panic!("{:?}", uri);
+    }
 
     #[test_case(&[b"abc"], b"abc")]
     #[test_case(&[b"a", b"b", b"c"], b"abc")]

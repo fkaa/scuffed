@@ -1,5 +1,3 @@
-use mediabox::codec::webvtt::*;
-use mediabox::codec::*;
 use mediabox::format::mkv::*;
 use mediabox::format::*;
 use mediabox::io::*;
@@ -10,6 +8,18 @@ use tokio::fs::File;
 
 use std::{env, str};
 
+fn transcode_subtitles(track: &Track) -> Option<(u32, Transcode)> {
+    (track.info.name != "webvtt").then(|| {
+        (
+            track.id,
+            Transcode::Subtitles {
+                decoder: mediabox::find_decoder_for_track(track).unwrap(),
+                encoder: mediabox::find_encoder_with_params("webvtt", &track.info).unwrap(),
+            },
+        )
+    })
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
@@ -17,30 +27,15 @@ async fn main() {
     let path = env::args().nth(1).expect("Provide a file");
     debug!("Opening {path}");
 
-    let file = File::open(path).await.unwrap();
-    let io = Io::from_reader(Box::new(file));
+    let io = Io::from_reader(Box::new(File::open(path).await.unwrap()));
     let mut demuxer = MatroskaDemuxer::new(io);
 
     let movie = demuxer.start().await.unwrap();
-
     for track in &movie.tracks {
         eprintln!("#{}: {:?}", track.id, track.info);
     }
 
-    let transcode_mapping = movie
-        .subtitles()
-        .filter_map(|Track { id, info, .. }| {
-            (info.name != "webvtt").then(|| {
-                (
-                    *id,
-                    Transcode::Subtitles {
-                        decoder: mediabox::find_decoder(info.name).unwrap(),
-                        encoder: mediabox::find_encoder_with_params("webvtt", info).unwrap(),
-                    },
-                )
-            })
-        })
-        .collect();
+    let transcode_mapping = movie.subtitles().filter_map(transcode_subtitles).collect();
 
     let mut transcoder = PacketTranscoder::new(transcode_mapping);
 

@@ -357,6 +357,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fluent-uri"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80caca0b85a39e8e4139c36441543e698b204279ae8065b3af413c9bf8b33146"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "flvparse"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -830,6 +839,7 @@ dependencies = [
  "console-subscriber",
  "downcast",
  "env_logger",
+ "fluent-uri",
  "flvparse",
  "futures",
  "gcd",

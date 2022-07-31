@@ -1,10 +1,102 @@
 use std::{collections::HashMap, fmt};
 
-use crate::{MediaTime, Packet};
+use crate::{MediaInfo, MediaTime, Packet, Track};
 
 pub mod ass;
 pub mod nal;
 pub mod webvtt;
+
+/// Registers a decoder with mediabox
+#[macro_export]
+macro_rules! decoder {
+    ($name:literal, $create:expr) => {
+        const META: crate::codec::DecoderMetadata = crate::codec::DecoderMetadata {
+            name: $name,
+            create: $create,
+        };
+
+        inventory::submit!(META);
+    };
+}
+
+/// Registers an encoder with mediabox
+#[macro_export]
+macro_rules! encoder {
+    ($name:literal, $create:expr) => {
+        const META: EncoderMetadata = EncoderMetadata {
+            name: $name,
+            create: $create,
+        };
+
+        inventory::submit!(META);
+    };
+}
+
+inventory::collect!(DecoderMetadata);
+inventory::collect!(EncoderMetadata);
+
+pub trait Decoder: Send + Sync {
+    fn start(&mut self, info: &MediaInfo) -> anyhow::Result<()>;
+    fn feed(&mut self, packet: Packet) -> anyhow::Result<()>;
+    fn receive(&mut self) -> Option<Decoded>;
+}
+
+pub trait Encoder: Send + Sync {
+    fn start(&mut self, desc: CodecDescription) -> anyhow::Result<Track>;
+    fn feed(&mut self, raw: Decoded) -> anyhow::Result<()>;
+    fn receive(&mut self) -> Option<Packet>;
+}
+
+#[derive(Clone)]
+pub struct DecoderMetadata {
+    pub(crate) name: &'static str,
+    create: fn() -> Box<dyn Decoder>,
+}
+
+impl DecoderMetadata {
+    pub fn create(&self) -> Box<dyn Decoder> {
+        (self.create)()
+    }
+}
+
+#[derive(Clone)]
+pub struct EncoderMetadata {
+    pub(crate) name: &'static str,
+    create: fn() -> Box<dyn Encoder>,
+}
+
+impl EncoderMetadata {
+    pub fn create(&self) -> Box<dyn Encoder> {
+        (self.create)()
+    }
+}
+
+pub enum CodecDescription {
+    Subtitle(SubtitleDescription),
+}
+
+impl CodecDescription {
+    pub fn into_subtitle(self) -> Option<SubtitleDescription> {
+        match self {
+            CodecDescription::Subtitle(desc) => Some(desc),
+            _ => None,
+        }
+    }
+}
+
+/// Result from decoding a [`Packet`].
+pub enum Decoded {
+    Subtitle(TextCue),
+}
+
+impl Decoded {
+    pub fn into_subtitle(self) -> Option<TextCue> {
+        match self {
+            Decoded::Subtitle(cue) => Some(cue),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct AssCodec {
@@ -122,44 +214,4 @@ pub enum TextPart {
     Alpha(TextAlpha),
     LineBreak,
     SmartBreak,
-}
-
-#[derive(Clone)]
-pub struct SubtitleDecoderMetadata {
-    pub(crate) name: &'static str,
-    create: fn() -> Box<dyn SubtitleDecoder>,
-}
-
-impl SubtitleDecoderMetadata {
-    pub fn create(&self) -> Box<dyn SubtitleDecoder> {
-        (self.create)()
-    }
-}
-
-inventory::collect!(SubtitleDecoderMetadata);
-
-pub trait SubtitleDecoder: Send + Sync {
-    fn start(&mut self, info: &SubtitleInfo) -> anyhow::Result<()>;
-    fn feed(&mut self, packet: Packet) -> anyhow::Result<()>;
-    fn receive(&mut self) -> Option<TextCue>;
-}
-
-#[derive(Clone)]
-pub struct SubtitleEncoderMetadata {
-    pub(crate) name: &'static str,
-    create: fn() -> Box<dyn SubtitleEncoder>,
-}
-
-impl SubtitleEncoderMetadata {
-    pub fn create(&self) -> Box<dyn SubtitleEncoder> {
-        (self.create)()
-    }
-}
-
-inventory::collect!(SubtitleEncoderMetadata);
-
-pub trait SubtitleEncoder: Send + Sync {
-    fn start(&mut self, desc: SubtitleDescription) -> anyhow::Result<SubtitleInfo>;
-    fn feed(&mut self, cue: TextCue) -> anyhow::Result<()>;
-    fn receive(&mut self) -> Option<Packet>;
 }

@@ -1,19 +1,14 @@
 use super::{
-    ColorType, SubtitleDecoder, SubtitleDecoderMetadata, SubtitleInfo, TextAlign, TextAlpha,
-    TextCue, TextFill, TextPart, TextPosition, TextStyle,
+    ColorType, Decoded, Decoder, SubtitleInfo, TextAlign, TextAlpha, TextCue, TextFill, TextPart,
+    TextPosition, TextStyle,
 };
-use crate::Packet;
+use crate::{decoder, MediaInfo, Packet};
 
 use logos::{Lexer, Logos};
 
 use std::{borrow::Borrow, collections::VecDeque, str};
 
-const DECODE_META: SubtitleDecoderMetadata = SubtitleDecoderMetadata {
-    name: "ass",
-    create: AssDecoder::create,
-};
-
-inventory::submit!(DECODE_META);
+decoder!("ass", AssDecoder::create);
 
 #[derive(Debug, thiserror::Error)]
 pub enum AssError {
@@ -34,7 +29,7 @@ impl AssDecoder {
         }
     }
 
-    fn create() -> Box<dyn SubtitleDecoder> {
+    fn create() -> Box<dyn Decoder> {
         Box::new(Self::new())
     }
 }
@@ -45,8 +40,8 @@ impl Default for AssDecoder {
     }
 }
 
-impl SubtitleDecoder for AssDecoder {
-    fn start(&mut self, info: &SubtitleInfo) -> anyhow::Result<()> {
+impl Decoder for AssDecoder {
+    fn start(&mut self, info: &MediaInfo) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -76,8 +71,8 @@ impl SubtitleDecoder for AssDecoder {
         Ok(())
     }
 
-    fn receive(&mut self) -> Option<TextCue> {
-        self.cues.pop_front()
+    fn receive(&mut self) -> Option<Decoded> {
+        self.cues.pop_front().map(Decoded::Subtitle)
     }
 }
 

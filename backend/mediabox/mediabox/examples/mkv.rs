@@ -19,35 +19,16 @@ async fn main() {
         eprintln!("#{}: {:?}", track.id, track.info);
     }
 
-    let (subtitle_id, _codec) = movie.subtitles().next().unwrap();
-
-    movie
-        .subtitles()
-        .filter_map(|(id, codec)| {
-            if codec != "webvtt" {
-                Some((
-                    id,
-                    Transcode::Subtitles {
-                        from: codec,
-                        to: "webvtt",
-                    },
-                ))
-            } else {
-                None
-            }
-        })
-        .collect::<HashMap<u32, Transcode>>();
-
     // println!("pts,dts,keyframe,stream,length");
     loop {
         let pkt = demuxer.read().await.unwrap();
 
         println!("{:?}", pkt.time);
-        if pkt.track.id == subtitle_id {
+        /*if pkt.track.id == subtitle_id {
             println!(
                 "{}",
                 String::from_utf8(pkt.buffer.to_slice().into_owned()).unwrap()
             );
-        }
+        }*/
     }
 }

@@ -8,7 +8,7 @@ use crate::{
     codec::nal::{convert_bitstream, frame_nal_units, BitstreamFraming},
     format::{Muxer, MuxerMetadata},
     io::Io,
-    H264Codec, MediaKind, MediaTime, Packet, Span, Track, VideoCodec, VideoInfo,
+    muxer, H264Codec, MediaKind, MediaTime, Packet, Span, Track, VideoCodec, VideoInfo,
 };
 
 // Wonderful macro taken from https://github.com/scottlamb/retina/ examples
@@ -30,6 +30,8 @@ macro_rules! write_box {
         }
     };
 }
+
+muxer!("fmp4", FragmentedMp4Muxer::create);
 
 pub struct FragmentedMp4Muxer {
     video: Option<Track>,
@@ -68,6 +70,10 @@ impl FragmentedMp4Muxer {
             io,
             seq: 0,
         }
+    }
+
+    fn create(io: Io) -> Box<dyn Muxer> {
+        Box::new(Self::new(io))
     }
 
     pub fn initialization_segment(&self) -> anyhow::Result<Span> {
@@ -236,16 +242,6 @@ impl FragmentedMp4Muxer {
         }
 
         debug!("Track mappings: {:?}", self.track_mapping);
-    }
-}
-
-impl MuxerMetadata for FragmentedMp4Muxer {
-    fn create(io: Io) -> Self {
-        FragmentedMp4Muxer::new(io)
-    }
-
-    fn name() -> &'static str {
-        "fmp4"
     }
 }
 

@@ -4,8 +4,8 @@
 
 use anyhow::Context;
 use codec::{
-    SubtitleDecoder, SubtitleDecoderMetadata, SubtitleDescription, SubtitleEncoder,
-    SubtitleEncoderMetadata,
+    CodecDescription, Decoded, Decoder, DecoderMetadata, Encoder, EncoderMetadata,
+    SubtitleDescription,
 };
 use std::{collections::HashMap, fmt};
 
@@ -22,28 +22,26 @@ pub use span::Span;
 use format::{DemuxerMetadata, ProbeResult};
 use io::Io;
 
-fn find_subtitle_decoder(name: &str) -> Option<SubtitleDecoderMetadata> {
-    inventory::iter::<SubtitleDecoderMetadata>
+pub fn find_decoder_for_track(track: &Track) -> anyhow::Result<Box<dyn Decoder>> {
+    let mut decoder = inventory::iter::<DecoderMetadata>
         .into_iter()
-        .find(|m| m.name == name)
-        .cloned()
+        .find(|m| m.name == track.info.name)
+        .map(|m| m.create())
+        .ok_or_else(|| anyhow::anyhow!("No decoder found for {:?}", track.info.name))?;
+
+    decoder.start(&track.info)?;
+
+    Ok(decoder)
 }
 
-pub fn find_decoder(name: &str) -> Option<Box<dyn SubtitleDecoder>> {
-    find_subtitle_decoder(name).map(|m| m.create())
-}
-
-pub fn find_encoder_with_params(
-    name: &str,
-    info: &MediaInfo,
-) -> anyhow::Result<Box<dyn SubtitleEncoder>> {
-    let mut encoder = inventory::iter::<SubtitleEncoderMetadata>
+pub fn find_encoder_with_params(name: &str, info: &MediaInfo) -> anyhow::Result<Box<dyn Encoder>> {
+    let mut encoder = inventory::iter::<EncoderMetadata>
         .into_iter()
         .find(|m| m.name == name)
         .map(|m| m.create());
 
     if let Some(ref mut encoder) = &mut encoder {
-        encoder.start(SubtitleDescription::default())?;
+        encoder.start(CodecDescription::Subtitle(SubtitleDescription::default()))?;
     }
 
     encoder.ok_or_else(|| anyhow::anyhow!("No encoder found for name {name:?}"))
@@ -74,8 +72,8 @@ pub async fn probe(io: &mut Io) -> anyhow::Result<DemuxerMetadata> {
 
 pub enum Transcode {
     Subtitles {
-        decoder: Box<dyn SubtitleDecoder>,
-        encoder: Box<dyn SubtitleEncoder>,
+        decoder: Box<dyn Decoder>,
+        encoder: Box<dyn Encoder>,
     },
 }
 
@@ -130,8 +128,8 @@ fn process_transcode<F: FnMut(Packet) + Send + 'static>(
         } => {
             decoder.feed(pkt)?;
 
-            while let Some(cue) = decoder.receive() {
-                encoder.feed(cue)?;
+            while let Some(decoded) = decoder.receive() {
+                encoder.feed(decoded)?;
 
                 while let Some(mut pkt) = encoder.receive() {
                     pkt.track.id = track_id;

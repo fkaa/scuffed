@@ -1,16 +1,12 @@
 use std::{collections::VecDeque, io::Write, sync::Arc};
 
-use crate::{Fraction, MediaInfo, MediaKind, Track};
+use crate::{encoder, Fraction, MediaInfo, MediaKind, Track};
 
 use super::*;
 
 const WEBVTT_TIMEBASE: Fraction = Fraction::new(1, 1000);
-const META: SubtitleEncoderMetadata = SubtitleEncoderMetadata {
-    name: "webvtt",
-    create: WebVttEncoder::create,
-};
 
-inventory::submit!(META);
+encoder!("webvtt", WebVttEncoder::create);
 
 pub struct WebVttEncoder {
     track: Option<Track>,
@@ -27,7 +23,7 @@ impl WebVttEncoder {
         }
     }
 
-    fn create() -> Box<dyn SubtitleEncoder> {
+    fn create() -> Box<dyn Encoder> {
         Box::new(Self::new())
     }
 }
@@ -38,8 +34,8 @@ impl Default for WebVttEncoder {
     }
 }
 
-impl SubtitleEncoder for WebVttEncoder {
-    fn start(&mut self, info: SubtitleDescription) -> anyhow::Result<SubtitleInfo> {
+impl Encoder for WebVttEncoder {
+    fn start(&mut self, desc: CodecDescription) -> anyhow::Result<Track> {
         let info = SubtitleInfo {
             codec: SubtitleCodec::WebVtt(WebVttCodec { header: "".into() }),
         };
@@ -48,17 +44,21 @@ impl SubtitleEncoder for WebVttEncoder {
             id: 0,
             info: Arc::new(MediaInfo {
                 name: "webvtt",
-                kind: MediaKind::Subtitle(info.clone()),
+                kind: MediaKind::Subtitle(info),
             }),
             timebase: WEBVTT_TIMEBASE,
         };
 
-        self.track = Some(track);
+        self.track = Some(track.clone());
 
-        Ok(info)
+        Ok(track)
     }
 
-    fn feed(&mut self, cue: TextCue) -> anyhow::Result<()> {
+    fn feed(&mut self, raw: Decoded) -> anyhow::Result<()> {
+        let cue = raw
+            .into_subtitle()
+            .ok_or_else(|| anyhow::anyhow!("Expected text cue"))?;
+
         let time = cue.time;
         let timebase = time.timebase;
         let begin_seconds = time.pts as f32 / timebase.denominator as f32;
