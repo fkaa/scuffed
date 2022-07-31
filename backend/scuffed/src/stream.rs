@@ -1,7 +1,14 @@
 use std::time::Instant;
 
 use axum::{
-    body::StreamBody, extract::Path, http::HeaderValue, response::Response, routing::get,
+    body::StreamBody,
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path,
+    },
+    http::HeaderValue,
+    response::Response,
+    routing::get,
     Extension, Json, Router,
 };
 use bytes::Bytes;
@@ -11,11 +18,15 @@ use mediabox::{
     format::{
         mp4::FragmentedMp4Muxer,
         rtmp::{RtmpListener, RtmpRequest},
+        Movie,
     },
-    Span,
+    Packet, Span,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc::Sender, RwLock};
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    RwLock,
+};
 
 use std::{collections::HashMap, io, sync::Arc};
 
@@ -26,6 +37,7 @@ pub fn api_route() -> Router {
         .route("/", get(get_streams))
         // .route("/:stream", get(stream::get_streams))
         .route("/:stream/snapshot", get(get_snapshot))
+        .route("/:stream/video", get(get_video))
 }
 
 async fn handle_rtmp_request(
@@ -35,19 +47,24 @@ async fn handle_rtmp_request(
     let app = request.app().to_string();
     let mut session = request.authenticate().await?;
 
-    let streams = session.streams().await?;
-    for stream in &streams {
-        eprintln!("{}: {:?}", stream.id, stream.info);
+    let tracks = session.streams().await?;
+    for track in &tracks {
+        debug!("{}: {:?}", track.id, track.info);
     }
 
-    let live_stream = LiveStream::new(streams);
+    let live_stream = LiveStream::new(Movie {
+        tracks,
+        attachments: Vec::new(),
+    });
     let splitter = live_stream.splitter.clone();
     let snapshot = live_stream.snapshot.clone();
 
     {
         let mut streams = live_streams.write().await;
-        dbg!(&app);
-        dbg!(&streams.keys());
+
+        debug!("{:?}", &app);
+        debug!("{:?}", &streams.keys());
+
         if streams.contains_key(&app) {
             return Err(anyhow::anyhow!("Tried to stream to an existing session"));
         }
@@ -80,7 +97,7 @@ pub async fn listen(live_streams: LiveStreams) -> anyhow::Result<()> {
         let live_streams = live_streams.clone();
 
         tokio::spawn(async {
-            eprintln!("Got RTMP request from {}", request.addr());
+            debug!("Got RTMP request from {}", request.addr());
 
             if let Err(e) = handle_rtmp_request(live_streams, request).await {
                 error!("{}", e);
@@ -99,10 +116,10 @@ pub struct LiveStream {
 }
 
 impl LiveStream {
-    pub fn new(streams: Vec<mediabox::Track>) -> Self {
+    pub fn new(movie: Movie) -> Self {
         LiveStream {
             started: Instant::now(),
-            splitter: PacketSplitter::new(streams),
+            splitter: PacketSplitter::new(movie),
             snapshot: Arc::new(RwLock::new(None)),
         }
     }
@@ -111,15 +128,25 @@ impl LiveStream {
 #[derive(Clone)]
 pub struct PacketSplitter {
     targets: Arc<RwLock<Vec<Sender<mediabox::Packet>>>>,
-    streams: Vec<mediabox::Track>,
+    movie: Movie,
 }
 
 impl PacketSplitter {
-    fn new(streams: Vec<mediabox::Track>) -> Self {
+    fn new(movie: Movie) -> Self {
         PacketSplitter {
             targets: Arc::new(RwLock::new(Vec::new())),
-            streams,
+            movie,
         }
+    }
+
+    pub async fn attach(&self) -> (Movie, Receiver<Packet>) {
+        let mut targets = self.targets.write().await;
+
+        let (send, recv) = mpsc::channel(512);
+
+        targets.push(send);
+
+        (self.movie.clone(), recv)
     }
 
     pub async fn write_packet(&self, packet: mediabox::Packet) {
@@ -186,7 +213,7 @@ pub async fn get_snapshot(
     let snapshot = stream.snapshot.read().await;
     let snapshot = snapshot.as_ref().ok_or(Error::NotFound)?;
 
-    let mp4 = snapshot_mp4(&stream.splitter.streams, snapshot.clone())?;
+    let mp4 = snapshot_mp4(&stream.splitter.movie, snapshot.clone())?;
     let chunks = mp4
         .to_byte_spans()
         .into_iter()
@@ -203,8 +230,8 @@ pub async fn get_snapshot(
     Ok(response)
 }
 
-fn snapshot_mp4(streams: &[mediabox::Track], packet: mediabox::Packet) -> anyhow::Result<Span> {
-    let mut fragger = FragmentedMp4Muxer::with_streams(streams);
+fn snapshot_mp4(movie: &Movie, packet: mediabox::Packet) -> anyhow::Result<Span> {
+    let mut fragger = FragmentedMp4Muxer::with_streams(&movie.tracks);
 
     let span = [
         fragger.initialization_segment()?,
@@ -214,4 +241,83 @@ fn snapshot_mp4(streams: &[mediabox::Track], packet: mediabox::Packet) -> anyhow
     .collect::<Span>();
 
     Ok(span)
+}
+
+pub async fn get_video(
+    ws: WebSocketUpgrade,
+    Path(stream): Path<String>,
+    Extension(LiveStreams(map)): Extension<LiveStreams>,
+) -> Result<Response, Error> {
+    let streams = map.read().await;
+
+    let stream = streams.get(&stream).ok_or(Error::NotFound)?;
+    let (movie, receiver) = stream.splitter.attach().await;
+
+    Ok(ws.on_upgrade(move |socket| websocket_video(socket, movie, receiver)))
+}
+
+async fn websocket_video(socket: WebSocket, movie: Movie, receiver: Receiver<Packet>) {
+    if let Err(e) = websocket_video_impl(socket, movie, receiver).await {
+        warn!("Error while sending video over websocket: {e}");
+    }
+}
+
+async fn wait_for_sync_frame(recv: &mut Receiver<Packet>) -> anyhow::Result<Packet> {
+    loop {
+        let pkt = recv
+            .recv()
+            .await
+            .ok_or(anyhow::anyhow!("Packet channel closed"))?;
+
+        if pkt.track.is_video() && pkt.key {
+            return Ok(pkt);
+        }
+    }
+}
+
+async fn websocket_video_impl(
+    mut socket: WebSocket,
+    movie: Movie,
+    mut receiver: Receiver<Packet>,
+) -> anyhow::Result<()> {
+    let mut fragger = FragmentedMp4Muxer::with_streams(&movie.tracks);
+
+    let first_frame = wait_for_sync_frame(&mut receiver).await?;
+
+    let codec_string = movie
+        .codec_string()
+        .ok_or(anyhow::anyhow!("Failed to create codec string"))?;
+    let content_type = format!("video/mp4; codecs=\"{}\"", codec_string);
+
+    debug!("Video content type: {content_type}");
+
+    socket.send(Message::Text(content_type)).await?;
+
+    socket
+        .send(Message::Binary(
+            fragger.initialization_segment()?.to_slice().into_owned(),
+        ))
+        .await?;
+
+    socket
+        .send(Message::Binary(
+            fragger
+                .write_media_segment(first_frame)?
+                .to_slice()
+                .into_owned(),
+        ))
+        .await?;
+
+    loop {
+        let pkt = receiver
+            .recv()
+            .await
+            .ok_or(anyhow::anyhow!("Packet channel closed"))?;
+
+        socket
+            .send(Message::Binary(
+                fragger.write_media_segment(pkt)?.to_slice().into_owned(),
+            ))
+            .await?;
+    }
 }

@@ -33,7 +33,10 @@ pub fn api_route(
         .layer(Extension(streams));
 
     if let Some(old_dir) = old_serve_dir {
-        router = router.nest("/old/", get_service(ServeDir::new(old_dir)).handle_error(handle_error));
+        router = router.nest(
+            "/old/",
+            get_service(ServeDir::new(old_dir)).handle_error(handle_error),
+        );
     }
 
     router

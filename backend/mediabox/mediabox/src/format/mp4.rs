@@ -2,13 +2,14 @@ use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use log::*;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use crate::{
     codec::nal::{convert_bitstream, frame_nal_units, BitstreamFraming},
     format::{Muxer, MuxerMetadata},
     io::Io,
-    muxer, H264Codec, MediaKind, MediaTime, Packet, Span, Track, VideoCodec, VideoInfo,
+    muxer, H264Codec, MediaDuration, MediaKind, MediaTime, Packet, Span, Track, VideoCodec,
+    VideoInfo,
 };
 
 // Wonderful macro taken from https://github.com/scottlamb/retina/ examples
@@ -143,7 +144,9 @@ impl FragmentedMp4Muxer {
         let track_id = self.track_mapping[&packet.track.id];
 
         let duration = if media_duration.duration == 0 {
-            packet.guess_duration().unwrap()
+            packet.guess_duration().unwrap_or_else(|| {
+                MediaDuration::from_duration(Duration::from_millis(16), packet.track.timebase)
+            })
         } else {
             media_duration
         };

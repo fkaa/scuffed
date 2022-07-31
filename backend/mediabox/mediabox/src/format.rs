@@ -2,7 +2,11 @@ use std::cmp::Ordering;
 
 use async_trait::async_trait;
 
-use crate::{io::Io, Packet, Span, Track};
+use crate::{
+    io::Io, AacCodec, AudioCodec, H264Codec, MediaTrackExt, Packet, Span, Track, VideoCodec,
+};
+
+use std::fmt::Write;
 
 pub mod hls;
 pub mod mkv;
@@ -134,17 +138,42 @@ impl PartialOrd for ProbeResult {
     }
 }
 
+#[derive(Clone)]
 pub struct Movie {
     pub tracks: Vec<Track>,
     pub attachments: Vec<Attachment>,
 }
 
 impl Movie {
+    pub fn codec_string(&self) -> Option<String> {
+        let video = self.tracks.video()?;
+        let VideoCodec::H264(H264Codec {
+            profile_indication,
+            profile_compatibility,
+            level_indication,
+            ..
+        }) = video.info.video()?.codec;
+
+        let mut codec = format!(
+            "avc1.{:02X}{:02X}{:02X}",
+            profile_indication, profile_compatibility, level_indication
+        );
+
+        if let Some(audio) = self.tracks.audio() {
+            let AudioCodec::Aac(AacCodec { ref extra }) = audio.info.audio()?.codec;
+
+            write!(&mut codec, ", mp4a.40.{:02X}", extra[0] >> 3).ok()?;
+        }
+
+        Some(codec)
+    }
+
     pub fn subtitles(&self) -> impl Iterator<Item = &Track> + '_ {
         self.tracks.iter().filter(|t| t.info.subtitle().is_some())
     }
 }
 
+#[derive(Clone)]
 pub struct Attachment {
     pub name: String,
     pub mime: String,

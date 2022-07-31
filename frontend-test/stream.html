@@ -3,17 +3,20 @@
 <link rel="stylesheet" href="style.css" />
 <meta charset="utf-8" />
 
-<nav>
-<h1>Scuffed</h1>
-<a href="#">Account</a>
-<a href="#">Help</a>
-</nav>
 
-<div class="a">
-<div class="b">
-<div id="streams"></div>
+<!--<div class="a">
+<div class="b">-->
+<h3>Click a stream to play video</h3>
+<button onclick="toggleStats()">Show stats</button>
+<div id="streams">
+</div>
+
+<div id="videoContainer">
+<video controls id="video">
 
 <script src="snapshot.js"></script>
+<script src="stats.js"></script>
+<script src="stream.js"></script>
 <script>
 let decoder = new VideoDecoder(180, 120);
 
@@ -53,11 +56,15 @@ async function populateStreams(streams) {
     }
 }
 
+let video = document.getElementById("video");
+let videoContainer = document.getElementById("videoContainer");
+let mseStream = null;
+
 function createStreamElement(stream) {
     let link = document.createElement("a");
     link.setAttribute("stream-id", stream.name);
     link.class = "stream";
-    link.href = `/${stream.name}`;
+    link.href = "#";
     let figure = document.createElement("figure");
     let img = document.createElement("img");
     img.src = "placeholder.gif";
@@ -71,6 +78,21 @@ function createStreamElement(stream) {
 
     link.appendChild(figure);
 
+    link.onclick = () => {
+        if (mseStream != null) {
+            mseStream.removeStream();
+        }
+
+        mseStream = new MseStream(`ws://localhost:8081/api/streams/${stream.name}/video`);
+        mseStream.video = video;
+        mseStream.attachStream();
+        video.play();
+    };
+
     return link;
+}
+
+function toggleStats() {
+    mseStream.statsContainer = mseStream.statsContainer == null ? videoContainer : null;
 }
 </script>
