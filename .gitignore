@@ -4,3 +4,4 @@ tags
 *.mp4
 .env
 .bacon-locations
+*.db
