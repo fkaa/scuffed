@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <title>Scuffed</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="/style.css" />
 <meta charset="utf-8" />
 
 <nav>
 <h1>Scuffed</h1>
+{% if let Some(name) = username %}
+<a href="account">Account ({{ name }})</a>
+{% else %}
 <a href="account">Account</a>
+{% endif %}
 <a href="#">Help</a>
 </nav>
 
@@ -13,7 +17,7 @@
 <div class="b">
 <div id="streams"></div>
 
-<script src="snapshot.js"></script>
+<script src="/snapshot.js"></script>
 <script>
 let decoder = new VideoDecoder(180, 120);
 
@@ -74,3 +78,4 @@ function createStreamElement(stream) {
     return link;
 }
 </script>
+

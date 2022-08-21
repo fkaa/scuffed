@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<title>Scuffed</title>
+<link rel="stylesheet" href="/style.css" />
+<meta charset="utf-8" />
+
+<nav>
+<h1>Scuffed</h1>
+<a href="/old/">Home</a>
+<a href="#">Help</a>
+</nav>
+
+<div class="a">
+<div class="b">
+<div id="streams"></div>
+
+<table style="margin:auto;">
+<tr>
+<td><label for="username">Username:</label>
+<td><input type="text" name="username" value="{{ username }}" readonly="readonly" required />
+<tr>
+<td><label for="key">Stream key:</label>
+<td>
+<details>
+<summary>Click to show</summary>
+<input type="text" name="key" value="{{ stream_key }}" readonly="readonly" required />
+</details>
+
+
