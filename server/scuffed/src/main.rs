@@ -92,7 +92,7 @@ pub async fn api_route(
     #[openapi(
         paths(
             stream::get_streams,
-            stream::get_snapshot,
+            stream::get_preview,
             stream::get_video,
             account::get_account,
             account::get_login,
@@ -108,7 +108,7 @@ pub async fn api_route(
     let mut router = Router::new()
         .merge(SwaggerUi::new("/swagger").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .route("/api/health", get(health))
-        .nest("/api/streams/", stream::api_route())
+        .nest("/api/stream/", stream::api_route())
         .nest("/api/account/", account::api_route())
         .nest(
             "/auth",

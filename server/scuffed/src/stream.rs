@@ -40,7 +40,7 @@ use crate::Error;
 pub fn api_route() -> Router {
     Router::new()
         .route("/", get(get_streams))
-        .route("/:stream/snapshot", get(get_snapshot))
+        .route("/:stream/preview", get(get_preview))
         .route("/:stream/video", get(get_video))
 }
 
@@ -346,26 +346,25 @@ pub async fn get_streams(
     Ok(Json(all_streams))
 }
 
-/// Gets the most recently cached snapshot from a stream.
+/// Gets the most recently cached preview from a stream.
 ///
 /// ### Remarks
 ///
-/// The snapshot is returned as a MP4 video with a single frame. It is up to the client to present
-/// this as an image.
+/// The preview is returned as a short MP4 video.
 ///
-/// This can return snapshots from offline streams as well.
+/// This can return previews from offline streams as well.
 #[utoipa::path(
     get,
     path = "/stream/{stream}/snapshot",
     responses(
-        (status = 200, description = "Returned snapshot", content_type = "video/mp4"),
-        (status = 404, description = "Did not find any snapshots for the given stream", content_type = "text/plain")
+        (status = 200, description = "Returned preview", content_type = "video/mp4"),
+        (status = 404, description = "Did not find any previews for the given stream", content_type = "text/plain")
     ),
     params(
-        ("stream" = String, Path, description = "The stream to get the snapshot from")
+        ("stream" = String, Path, description = "The stream to get the preview from")
     )
 )]
-pub async fn get_snapshot(
+pub async fn get_preview(
     Path(stream): Path<String>,
     Extension(svc): Extension<LiveStreamService>,
 ) -> Result<Response<StreamBody<impl Stream<Item = io::Result<Bytes>>>>, Error> {
