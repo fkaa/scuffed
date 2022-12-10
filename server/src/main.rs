@@ -1,8 +1,8 @@
 #![allow(dead_code)]
+use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::{env};
 
 use anyhow::Context;
 use askama::Template;
@@ -11,21 +11,16 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::{http::StatusCode, response::IntoResponse, Extension, Router};
 use futures::FutureExt;
-use idlib::{
-    AuthCallback, IdpClient,
-    SecretKey, Variables,
-};
+use idlib::{AuthCallback, IdpClient, SecretKey, Variables};
 
 use log::*;
 use rusqlite::{params, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 
-
-
-mod error;
-mod stream;
 mod account;
+mod error;
 mod live;
+mod stream;
 
 pub use error::Error;
 use utoipa::OpenApi;
@@ -80,10 +75,7 @@ async fn create_account_if_missing(db: Connection, name: String) -> anyhow::Resu
     Ok(())
 }
 
-pub async fn api_route(
-    db: tokio_rusqlite::Connection,
-    svc: stream::LiveStreamService,
-) -> Router {
+pub async fn api_route(db: tokio_rusqlite::Connection, svc: stream::LiveStreamService) -> Router {
     let secret_key = SecretKey::from_env();
     let variables = Variables::from_env();
 
@@ -99,9 +91,7 @@ pub async fn api_route(
             account::get_login,
             account::post_generate_stream_key
         ),
-        components(
-            schemas(stream::LiveStreamInfo, account::AccountInfo)
-        )
+        components(schemas(stream::LiveStreamInfo, account::AccountInfo))
     )]
     struct ApiDoc;
 

@@ -1,26 +1,19 @@
-
-
 use anyhow::Context;
 use axum::{
-    http::{StatusCode},
-    response::{IntoResponse},
+    http::StatusCode,
+    response::IntoResponse,
     routing::{get, post},
     Extension, Json, Router,
 };
 
-
 use idlib::{AuthorizationRejection, AuthorizeCookie, NoGroups};
 
-
-use rusqlite::{params};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
-
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 use tokio_rusqlite::Connection;
 use utoipa::ToSchema;
-use rand::{rngs::StdRng, SeedableRng, RngCore};
-
-
 
 use crate::Error;
 
@@ -61,15 +54,20 @@ pub async fn get_account(
         return Error::NotFound.into_response();
     };
 
-    maybe_token.wrap_future(async move {
-        let account = get_account_by_username(db, payload.name)
-            .await;
+    maybe_token
+        .wrap_future(async move {
+            let account = get_account_by_username(db, payload.name).await;
 
-        account.map(|a| Json(AccountInfo {
-            name: a.username,
-            stream_key: a.stream_key,
-        })).map_err(|_| Error::NotFound)
-    }).await
+            account
+                .map(|a| {
+                    Json(AccountInfo {
+                        name: a.username,
+                        stream_key: a.stream_key,
+                    })
+                })
+                .map_err(|_| Error::NotFound)
+        })
+        .await
 }
 
 /// Logs in to the site by redirecting to hiveID.
@@ -108,7 +106,6 @@ async fn get_account_by_username(db: Connection, username: String) -> anyhow::Re
     .await
 }
 
-
 /// Generates a new stream key.
 #[utoipa::path(
     post,
@@ -121,11 +118,13 @@ pub async fn post_generate_stream_key(
     AuthorizeCookie(payload, maybe_token, ..): AuthorizeCookie<NoGroups>,
     Extension(db): Extension<Connection>,
 ) -> impl IntoResponse {
-    maybe_token.wrap_future(async move {
-        generate_stream_key(db, payload.name).await?;
+    maybe_token
+        .wrap_future(async move {
+            generate_stream_key(db, payload.name).await?;
 
-        Ok::<_, Error>(StatusCode::OK)
-    }).await
+            Ok::<_, Error>(StatusCode::OK)
+        })
+        .await
 }
 
 async fn generate_stream_key(db: Connection, username: String) -> anyhow::Result<()> {
@@ -136,7 +135,7 @@ async fn generate_stream_key(db: Connection, username: String) -> anyhow::Result
             "UPDATE users \
             SET stream_key = ?1
             WHERE username = ?2",
-            params![new_stream_key, username]
+            params![new_stream_key, username],
         )
         .context("Failed to update stream key")?;
 

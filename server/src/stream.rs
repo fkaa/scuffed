@@ -1,15 +1,6 @@
-
-
 use anyhow::Context;
 use axum::{
-    body::StreamBody,
-    extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
-        Path,
-    },
-    http::HeaderValue,
-    response::Response,
-    routing::get,
+    body::StreamBody, extract::Path, http::HeaderValue, response::Response, routing::get,
     Extension, Json, Router,
 };
 use bytes::Bytes;

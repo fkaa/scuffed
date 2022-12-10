@@ -1,6 +1,3 @@
-
-
-
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -10,32 +7,17 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-
-
 use log::*;
 use mediabox::{
-    format::{
-        mp4::FragmentedMp4Muxer,
-        Movie,
-    },
+    format::{mp4::FragmentedMp4Muxer, Movie},
     Packet,
 };
+use tokio::sync::mpsc::Receiver;
 
-
-
-use tokio::sync::{
-    mpsc::{Receiver},
-};
-
-use utoipa::ToSchema;
-
-
-
-use crate::{Error, stream::LiveStreamService};
+use crate::{stream::LiveStreamService, Error};
 
 pub fn api_route() -> Router {
-    Router::new()
-        .route("/:stream", get(get_video))
+    Router::new().route("/:stream", get(get_video))
 }
 
 /// Gets a MP4 video livestream through a websocket connection.
