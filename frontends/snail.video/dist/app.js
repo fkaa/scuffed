@@ -73,7 +73,8 @@ async function loadStreamPage(stream) {
 
     let video = streamPage.querySelector("video");
     
-    activeStream = new MseStream(`wss://snail.video/api/stream/${stream}`);
+    activeStream = new MseStream(`wss://snail.video/api/live/${stream}`);
+    activeStream.statsContainer = streamPage.querySelector(".stream-page-overlay");
     activeStream.video = video;
 
     function startReconnecting() {
