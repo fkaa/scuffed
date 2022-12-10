@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="/style.css" />
 <meta charset="utf-8" />
 <script src="app.js"></script>
+<script src="stream.js"></script>
 
 <!-- template home page -->
 <template id="homePageTemplate">
@@ -47,4 +48,29 @@
                         <br><br><button id="generate">generate new</button>
                         <br><button id="copy">copy</button>
         </table>
+</template>
+
+<!-- template for stream page -->
+<template id="streamPageTemplate">
+    <div class="stream-page">
+        <video></video>
+        <div class="stream-page-overlay">
+            <div class="stream-page-upper">
+                <p class="label"><a href="#">back</a>
+            </div>
+            <div class="stream-page-center">
+                <p class="label big"><span class="stream-name">stream-name</span>
+                <div class="stream-page-status">
+            </div>
+</template>
+
+<!-- template for connecting status -->
+<template id="connectingTemplate">
+    <marquee><p class="label"><span>connecting<span class="dots"></span></span></marquee>
+</template>
+
+<!-- template for reconnecting status -->
+<template id="reconnectingTemplate">
+    <p class="label bad"><span class="status bad"></span>
+    <p class="label bad"><span>Reconnecting in <span class="timer"></span>...</span>
 </template>

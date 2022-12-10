@@ -1,4 +1,6 @@
 let accountInfo;
+let activeStream;
+
 window.onload = async function(e) {
     accountInfo = await getAccountInfo();
     await fragmentChanged();
@@ -23,10 +25,102 @@ async function fragmentChanged() {
             break;
 
         default:
-            // TODO: navigate to stream
-
+            console.log("Loading stream page");
+            await loadStreamPage(location.hash.substring(1));
             break;
     }
+}
+
+function connectStatus() {
+    let connect = connectingTemplate.content.cloneNode(true);
+
+    return connect;
+}
+
+function reconnectStatus(statusText, seconds, callback) {
+    let reconnect = reconnectingTemplate.content.cloneNode(true);
+
+    let msg = reconnect.querySelector(".status");
+    let timer = reconnect.querySelector(".timer");
+
+    msg.innerText = statusText;
+
+    function updateTimerText() {
+        seconds -= 1;
+
+        let timeLeft = Math.max(0, seconds);
+        timer.innerText = Math.round(timeLeft);
+
+        if (seconds > 0) {
+            setTimeout(updateTimerText, Math.min(timeLeft * 1000, 1000));
+        } else {
+            callback();
+        }
+    }
+
+    seconds += 1;
+    updateTimerText();
+
+    return reconnect;
+}
+
+
+async function loadStreamPage(stream) {
+    let streamPage = streamPageTemplate.content.cloneNode(true);
+    let mainDiv = streamPage.querySelector(".stream-page");
+    let statusElement = streamPage.querySelector(".stream-page-status");
+    streamPage.querySelector(".stream-name").innerText = stream;
+
+    let video = streamPage.querySelector("video");
+    
+    activeStream = new MseStream(`wss://snail.video/api/stream/${stream}`);
+    activeStream.video = video;
+
+    function startReconnecting() {
+        console.log("Starting to reconnect!");
+        let element = reconnectStatus("Failed to connect to stream", 3, () => {
+            activeStream.attachStream();
+        });
+
+        mainDiv.classList.add("connecting");
+        statusElement.innerHTML = "";
+        statusElement.appendChild(element);
+    }
+
+    function startConnecting() {
+        console.log("Connecting!");
+
+        mainDiv.classList.add("connecting");
+        statusElement.innerHTML = "";
+        statusElement.appendChild(connectStatus());
+    }
+
+    activeStream.onconnectstart = (e) => {
+        startConnecting();
+    };
+    activeStream.onconnectionsuccess = (e) => {
+        mainDiv.classList.remove("connecting");
+    };
+    activeStream.onconnectionfail = (e) => {
+        startReconnecting();
+    };
+
+    activeStream.attachStream();
+
+    let canAutoPlay = null;
+    video.play().then(() => video.pause()).catch(() => {
+        console.warn("Cannot autoplay");
+        canAutoPlay = false;
+    });
+    setTimeout(() => {
+        if (canAutoPlay == null) {
+            console.log("Can autoplay");
+            canAutoPlay = true;
+            activeStream.attachStream();
+        }
+    }, 500);
+
+    document.body.appendChild(streamPage);
 }
 
 async function loadAccountPage() {
@@ -83,7 +177,7 @@ function createStreamCard(stream) {
     let clone = streamTemplate.content.cloneNode(true);
 
     let video = clone.querySelector("video");
-    video.src = `/api/streams/${stream.name}/snapshot`
+    video.src = `/api/stream/${stream.name}/preview`
     video.playbackRate = 2.0;
 
     let link = clone.querySelector(".streamLink");
@@ -95,7 +189,7 @@ function createStreamCard(stream) {
         video.pause();
     };
 
-    clone.querySelector("h2").innCargerText = stream.name;
+    clone.querySelector("h2").innerText = stream.name;
 
     if (stream.stopped != null) {
         let stopDate = new Date(stream.stopped * 1000);
@@ -123,7 +217,7 @@ async function getAccountInfo() {
 }
 
 async function getStreams() {
-    return await fetch('/api/streams/').then((response) => response.json());
+    return await fetch('/api/stream/').then((response) => response.json());
 }
 
 async function generateNewStreamKey() {
