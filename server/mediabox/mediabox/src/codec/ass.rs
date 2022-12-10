@@ -1,5 +1,5 @@
 use super::{
-    ColorType, Decoded, Decoder, SubtitleInfo, TextAlign, TextAlpha, TextCue, TextFill, TextPart,
+    ColorType, Decoded, Decoder, TextAlign, TextAlpha, TextCue, TextFill, TextPart,
     TextPosition, TextStyle,
 };
 use crate::{decoder, MediaInfo, Packet};

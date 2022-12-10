@@ -6,7 +6,7 @@ use std::{collections::HashMap, time::Duration};
 
 use crate::{
     codec::nal::{convert_bitstream, frame_nal_units, BitstreamFraming},
-    format::{Muxer, MuxerMetadata},
+    format::Muxer,
     io::Io,
     muxer, H264Codec, MediaDuration, MediaKind, MediaTime, Packet, Span, Track, VideoCodec,
     VideoInfo,
@@ -123,6 +123,10 @@ impl FragmentedMp4Muxer {
             if let Some(video) = &self.video {
                 write_video_trak(&mut buf, video)?;
             }
+
+            if let Some(audio) = &self.audio {
+                write_audio_trak(&mut buf, audio)?;
+            }
         });
 
         Ok(buf.freeze().into())
@@ -157,7 +161,7 @@ impl FragmentedMp4Muxer {
     pub fn write_many_media_segments(&mut self, packets: &[Packet]) -> anyhow::Result<Span> {
         // TODO: audio?
         let track_id = self.track_mapping[&packets[0].track.id];
- 
+
         let mut buf = BytesMut::new();
         let data_offset_pos;
 
@@ -210,7 +214,7 @@ impl FragmentedMp4Muxer {
         mdat_header.extend_from_slice(b"mdat");
         let mdat_header = mdat_header.freeze();
 
-        let sample_data = packets.iter().map(|packet| {match packet.track.info.kind {
+        let sample_data = packets.iter().map(|packet| match packet.track.info.kind {
             MediaKind::Video(VideoInfo {
                 codec:
                     VideoCodec::H264(H264Codec {
@@ -223,7 +227,6 @@ impl FragmentedMp4Muxer {
                 BitstreamFraming::FourByteLength,
             ),
             _ => packet.buffer.clone(),
-        }
         });
 
         let segment = [moof.into(), mdat_header.into()]

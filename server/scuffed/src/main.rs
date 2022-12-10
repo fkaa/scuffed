@@ -2,29 +2,30 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::{borrow::Cow, env};
+use std::{env};
 
 use anyhow::Context;
 use askama::Template;
 use axum::body::{self, boxed, BoxBody, Empty, Full};
 use axum::response::Response;
 use axum::routing::get;
-use axum::{http::StatusCode, response::IntoResponse, routing::get_service, Extension, Router};
+use axum::{http::StatusCode, response::IntoResponse, Extension, Router};
 use futures::FutureExt;
 use idlib::{
-    AuthCallback, AuthorizationRejection, AuthorizeCookie, IdpClient, PermissionResponse,
+    AuthCallback, IdpClient,
     SecretKey, Variables,
 };
-use jwt::token::signed::SignWithKey;
+
 use log::*;
 use rusqlite::{params, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
-use serde::Deserialize;
-use tower_http::services::ServeDir;
+
+
 
 mod error;
 mod stream;
 mod account;
+mod live;
 
 pub use error::Error;
 use utoipa::OpenApi;
@@ -34,7 +35,7 @@ pub type Connection = tokio_rusqlite::Connection;
 
 const MIGRATIONS: [M; 1] = [M::up(include_str!("../migrations/0001_initial.sql"))];
 
-pub fn into_response<T: Template>(t: &T, ext: &str) -> Response<BoxBody> {
+pub fn into_response<T: Template>(t: &T, _ext: &str) -> Response<BoxBody> {
     match t.render() {
         Ok(body) => Response::builder()
             .status(StatusCode::OK)
@@ -54,7 +55,7 @@ async fn create_account_if_missing(db: Connection, name: String) -> anyhow::Resu
             .query_row(
                 "SELECT * FROM users WHERE username = ?1",
                 params![&name],
-                |r| Ok(()),
+                |_r| Ok(()),
             )
             .optional()
             .context("Failed to query users")?
@@ -93,7 +94,7 @@ pub async fn api_route(
         paths(
             stream::get_streams,
             stream::get_preview,
-            stream::get_video,
+            live::get_video,
             account::get_account,
             account::get_login,
             account::post_generate_stream_key
@@ -109,6 +110,7 @@ pub async fn api_route(
         .merge(SwaggerUi::new("/swagger").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .route("/api/health", get(health))
         .nest("/api/stream/", stream::api_route())
+        .nest("/api/live/", live::api_route())
         .nest("/api/account/", account::api_route())
         .nest(
             "/auth",

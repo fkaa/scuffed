@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use codec::{
-    CodecDescription, Decoded, Decoder, DecoderMetadata, Encoder, EncoderMetadata,
+    CodecDescription, Decoder, DecoderMetadata, Encoder, EncoderMetadata,
     SubtitleDescription,
 };
 use std::{collections::HashMap, fmt};

@@ -1,4 +1,4 @@
-use std::time::Instant;
+
 
 use anyhow::Context;
 use axum::{
@@ -49,7 +49,7 @@ async fn handle_rtmp_request(
     svc: LiveStreamService,
     request: RtmpRequest,
 ) -> anyhow::Result<()> {
-    let app = request.app().to_string();
+    let _app = request.app().to_string();
     let key = request.key().to_string();
 
     let account = get_account_by_stream_key(db, key).await?;
@@ -433,10 +433,12 @@ fn snapshot_mp4(movie: &Movie, packets: Vec<mediabox::Packet>) -> anyhow::Result
     )
 )]
 pub async fn get_video(
-    ws: WebSocketUpgrade,
     Path(stream): Path<String>,
+    ws: WebSocketUpgrade,
     Extension(svc): Extension<LiveStreamService>,
 ) -> Result<Response, Error> {
+    debug!("Received video request for {stream}");
+
     let mut splitter = svc
         .get_splitter_for_stream(&stream)
         .await

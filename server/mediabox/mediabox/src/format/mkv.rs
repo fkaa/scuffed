@@ -14,7 +14,7 @@ use crate::{
     Track,
 };
 
-use super::{DemuxerMetadata, ProbeResult};
+use super::{ProbeResult};
 
 macro_rules! ebml {
     ($io:expr, $size:expr, $( $pat:pat_param => $blk:block ),* ) => {

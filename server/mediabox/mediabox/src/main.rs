@@ -1,7 +1,7 @@
 use anyhow::Context;
 
 use mediabox::{
-    format::{Demuxer, DemuxerMetadata},
+    format::{Demuxer},
     io::Io,
 };
 
