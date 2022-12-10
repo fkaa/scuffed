@@ -96,7 +96,7 @@ pub async fn get_account(
     )
 )]
 pub async fn get_login(
-    AuthorizeCookie(_, maybe_token, ..): AuthorizeCookie<NoGroups>,
+    AuthorizeCookie(_payload, maybe_token, ..): AuthorizeCookie<NoGroups>,
 ) -> impl IntoResponse {
     maybe_token.wrap(|| {})
 }
