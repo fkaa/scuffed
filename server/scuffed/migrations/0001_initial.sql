@@ -1,0 +1,4 @@
+CREATE TABLE users (
+    username TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+    stream_key TEXT NOT NULL
+) STRICT;

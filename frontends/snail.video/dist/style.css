@@ -1,0 +1,102 @@
+html, body {
+    color: #fefefe;
+    background-color: #121212;
+    padding: 0;
+    margin: 0;
+    font-family: sans-serif;
+}
+body {
+}
+
+a.top {
+    position: absolute;
+    top:0;
+    right:0;
+    padding:1em;
+    font-size: 16pt;
+    font-weight: bold;
+    color: #fefefe;
+}
+
+body h1 {
+    padding: 150px 0px 0px 200px;
+}
+
+.title {
+    padding: 150px 0px 0px 200px;
+    font-size: 24pt;
+    font-weight: bold;
+}
+.normal {
+}
+.fragment {
+    color: #555;
+}
+
+.offline {
+    pointer-events: none;
+}
+
+.stream {
+    width: 100%;
+    padding: 1em 0;
+}
+
+.stream:nth-child(even) {
+    background-color: #222;
+}
+
+.streamLink:hover .stream {
+    background-color: #333;
+}
+
+.stream video {
+    max-width: 38vw;
+    vertical-align: bottom;
+    filter: grayscale(0.6);
+}
+
+.offline video {
+    filter: grayscale(1.0) !important;
+}
+
+.stream video {
+    max-width: 38vw;
+    vertical-align: bottom;
+    filter: grayscale(0.6);
+}
+
+.stream:hover video {
+    filter: none;
+}
+
+.stream p {
+}
+
+.stream-title {
+    display: inline-block;
+    color: #bbb;
+    text-align: end;
+    width: 200px;
+    vertical-align: bottom;
+}
+
+.stream-title * {
+    padding-right: 20px;
+}
+.stream-title h2 {
+    margin: 0;
+}
+
+h1 {
+    text-decoration: underline;
+}
+
+.account-page table,tr,td {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+.account-page table {
+    padding-left: 200px;
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<title>snail.video</title>
+<link rel="shortcut icon" href="/favicon.png">
+<link rel="stylesheet" href="/style.css" />
+<meta charset="utf-8" />
+<script src="app.js"></script>
+
+<!-- template home page -->
+<template id="homePageTemplate">
+    <a class="top" href="#account">account</a>
+    <p class="title"><span class="normal">snail.video/</span>
+
+    <div id="streamsContainer"></div>
+</template>
+
+<!-- template for each stream item -->
+<template id="streamTemplate">
+    <a class="streamLink" href="#">
+        <div class="stream">
+            <div class="stream-title">
+                <h2>User</h2>
+                <h3>Status</h3>
+                <p>Streaming
+            </div><video loop=""></video>
+        </div>
+    </a>
+</template>
+
+<!-- template for account page -->
+<template id="accountPageTemplate">
+    <div class="account-page">
+        <a class="top" href="#">home</a>
+        <p class="title"><span class="normal">snail.video/</span><span class="fragment">#account</span>
+
+        <table>
+            <tr>
+                <td>
+                    <fieldset>
+                        <legend>username</legend>
+                        <input name="username" readonly>
+            <tr>
+                <td>
+                    <fieldset>
+                        <legend>stream key</legend>
+                        <input name="streamKey" type="password" readonly>
+
+                        <br><br><button id="generate">generate new</button>
+                        <br><button id="copy">copy</button>
+        </table>
+</template>
