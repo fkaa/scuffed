@@ -5,8 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
-use askama::Template;
-use axum::body::{self, boxed, BoxBody, Empty, Full};
+use axum::body::{boxed, BoxBody, Empty};
 use axum::response::Response;
 use axum::routing::get;
 use axum::{http::StatusCode, response::IntoResponse, Extension, Router};
@@ -29,20 +28,6 @@ use utoipa_swagger_ui::SwaggerUi;
 pub type Connection = tokio_rusqlite::Connection;
 
 const MIGRATIONS: [M; 1] = [M::up(include_str!("../migrations/0001_initial.sql"))];
-
-pub fn into_response<T: Template>(t: &T, _ext: &str) -> Response<BoxBody> {
-    match t.render() {
-        Ok(body) => Response::builder()
-            .status(StatusCode::OK)
-            .header("content-type", "text/html")
-            .body(body::boxed(Full::from(body)))
-            .unwrap(),
-        Err(_) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(body::boxed(Empty::new()))
-            .unwrap(),
-    }
-}
 
 async fn create_account_if_missing(db: Connection, name: String) -> anyhow::Result<()> {
     db.call(move |conn| {

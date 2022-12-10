@@ -9,12 +9,8 @@ anyhow = "1.0.57"
 axum = { version = "0.6", features = ["http1", "query", "ws"] }
 bytes = "1.1.0"
 dotenv = "0.15.0"
-flvparse = "0.1.0"
 futures = "0.3.21"
-gcd = "2.1.0"
-h264-reader = "0.5.0"
 log = "0.4.17"
-rml_rtmp = "0.6.1"
 rusqlite = "0.27.0"
 rusqlite_migration = { git = "https://github.com/cljoly/rusqlite_migration" }
 mediabox = { git = "https://github.com/fkaa/mediabox", features = ["rtmp"] }
@@ -23,11 +19,9 @@ tokio-rusqlite = "0.1.0"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 thiserror = "1.0.31"
-tower-http = { version = "0.3.4", features = ["fs"] }
 env_logger = "0.9.0"
 idlib = { git = "https://github.com/Mavulp/id" }
 jwt = "0.16.0"
-askama = "0.11.1"
 utoipa = { version = "2.4.2", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.0.1", features = ["axum"] }
 time = "0.3.17"
