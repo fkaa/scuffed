@@ -22,11 +22,13 @@ use rusqlite_migration::{Migrations, M};
 use serde::Deserialize;
 use tower_http::services::ServeDir;
 
-mod db;
 mod error;
 mod stream;
+mod account;
 
 pub use error::Error;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 pub type Connection = tokio_rusqlite::Connection;
 
@@ -55,7 +57,7 @@ async fn create_account_if_missing(db: Connection, name: String) -> anyhow::Resu
                 |r| Ok(()),
             )
             .optional()
-            .context("")?
+            .context("Failed to query users")?
         {
             let stream_key = "test123";
 
@@ -79,19 +81,35 @@ async fn create_account_if_missing(db: Connection, name: String) -> anyhow::Resu
 
 pub async fn api_route(
     db: tokio_rusqlite::Connection,
-    streams: stream::LiveStreams,
-    serve_dir: PathBuf,
-    old_serve_dir: Option<PathBuf>,
+    svc: stream::LiveStreamService,
 ) -> Router {
     let secret_key = SecretKey::from_env();
     let variables = Variables::from_env();
 
     let client = IdpClient::default();
 
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(
+            stream::get_streams,
+            stream::get_snapshot,
+            stream::get_video,
+            account::get_account,
+            account::get_login,
+            account::post_generate_stream_key
+        ),
+        components(
+            schemas(stream::LiveStreamInfo, account::AccountInfo)
+        )
+    )]
+    struct ApiDoc;
+
     let a = db.clone();
     let mut router = Router::new()
+        .merge(SwaggerUi::new("/swagger").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .route("/api/health", get(health))
         .nest("/api/streams/", stream::api_route())
+        .nest("/api/account/", account::api_route())
         .nest(
             "/auth",
             idlib::api_route(
@@ -108,11 +126,11 @@ pub async fn api_route(
                 })))),
             ),
         )
-        .fallback(get_service(ServeDir::new(serve_dir)).handle_error(handle_error));
+        .layer(Extension(IdpClient::default()));
 
     router = router
         .layer(Extension(db))
-        .layer(Extension(streams))
+        .layer(Extension(svc))
         .layer(Extension(secret_key))
         .layer(Extension(Arc::new(variables)));
 
@@ -169,16 +187,19 @@ async fn run() {
     })
     .await;
 
-    let streams = stream::LiveStreams::default();
+    let svc = stream::LiveStreamService::new();
 
-    let live_streams = streams.clone();
-    tokio::spawn(async {
-        if let Err(e) = stream::listen(live_streams).await {
-            error!("{}", e);
-        }
-    });
+    {
+        let db = conn.clone();
+        let svc = svc.clone();
+        tokio::spawn(async {
+            if let Err(e) = stream::listen(db, svc).await {
+                error!("{}", e);
+            }
+        });
+    }
 
-    let router = api_route(conn, streams, serve_dir, old_serve_dir).await;
+    let router = api_route(conn, svc).await;
 
     axum::Server::try_bind(&bind_addr)
         .expect("Failed to bind server")

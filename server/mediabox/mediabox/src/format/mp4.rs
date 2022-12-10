@@ -128,7 +128,7 @@ impl FragmentedMp4Muxer {
         Ok(buf.freeze().into())
     }
 
-    pub fn write_media_segment(&mut self, packet: Packet) -> anyhow::Result<Span> {
+    fn get_packet_time(&mut self, packet: &Packet) -> (MediaDuration, MediaDuration) {
         let prev_time = self
             .prev_times
             .entry(packet.track.id)
@@ -141,8 +141,6 @@ impl FragmentedMp4Muxer {
         let media_duration = packet.time.clone() - prev_time.clone();
         let base_offset = prev_time.clone() - start_time.clone();
 
-        let track_id = self.track_mapping[&packet.track.id];
-
         let duration = if media_duration.duration == 0 {
             packet.guess_duration().unwrap_or_else(|| {
                 MediaDuration::from_duration(Duration::from_millis(16), packet.track.timebase)
@@ -151,7 +149,94 @@ impl FragmentedMp4Muxer {
             media_duration
         };
 
-        // let duration = duration.in_base(Fraction::new(1, 90_000));
+        self.prev_times.insert(packet.track.id, packet.time.clone());
+
+        (base_offset, duration)
+    }
+
+    pub fn write_many_media_segments(&mut self, packets: &[Packet]) -> anyhow::Result<Span> {
+        // TODO: audio?
+        let track_id = self.track_mapping[&packets[0].track.id];
+ 
+        let mut buf = BytesMut::new();
+        let data_offset_pos;
+
+        write_box!(&mut buf, b"moof", {
+            write_box!(&mut buf, b"mfhd", {
+                buf.put_u32(0 << 24); // version
+                buf.put_u32(self.seq as u32); // sequence_id
+            });
+
+            write_box!(&mut buf, b"traf", {
+                write_box!(&mut buf, b"tfhd", {
+                    let flags = 0x0200_00; // base_is_moof
+                    buf.put_u32(flags); // version, flags
+                    buf.put_u32(track_id); // track_id
+                });
+                write_box!(&mut buf, b"trun", {
+                    let flags = 0x0000_01 | // offset_present
+                        0x0001_00 | // duration_present
+                        0x0002_00 | // size_present
+                        0x0004_00; // sample_flags_prsent
+                    buf.put_u32(flags); // version, flags
+                    buf.put_u32(packets.len() as u32); // sample_len
+
+                    data_offset_pos = buf.len();
+                    buf.put_u32(0); // data_offset
+                    for pkt in packets {
+                        let (_base_offset, duration) = self.get_packet_time(&pkt);
+                        let track_id = self.track_mapping[&pkt.track.id];
+                        let duration = duration.duration;
+
+                        buf.put_u32(duration as u32);
+                        buf.put_u32(pkt.buffer.len() as _);
+                        buf.put_u32(if pkt.key { 0x10000 } else { 0 }); // first_sample_flags
+                    }
+                });
+                write_box!(&mut buf, b"tfdt", {
+                    buf.put_u32(1 << 24); // version
+                    buf.put_u64(0); // decode_time
+                });
+            });
+        });
+
+        let len = (buf.len() as u32 + 8).to_be_bytes();
+        buf[data_offset_pos..(data_offset_pos + 4)].copy_from_slice(&len);
+
+        let moof = buf.freeze();
+
+        let mut mdat_header = BytesMut::new();
+        mdat_header.put_u32(packets.iter().map(|p| p.buffer.len()).sum::<usize>() as u32 + 8);
+        mdat_header.extend_from_slice(b"mdat");
+        let mdat_header = mdat_header.freeze();
+
+        let sample_data = packets.iter().map(|packet| {match packet.track.info.kind {
+            MediaKind::Video(VideoInfo {
+                codec:
+                    VideoCodec::H264(H264Codec {
+                        bitstream_format, ..
+                    }),
+                ..
+            }) => convert_bitstream(
+                packet.buffer.clone(),
+                bitstream_format,
+                BitstreamFraming::FourByteLength,
+            ),
+            _ => packet.buffer.clone(),
+        }
+        });
+
+        let segment = [moof.into(), mdat_header.into()]
+            .into_iter()
+            .chain(sample_data)
+            .collect::<Span>();
+
+        Ok(segment)
+    }
+
+    pub fn write_media_segment(&mut self, packet: Packet) -> anyhow::Result<Span> {
+        let (base_offset, duration) = self.get_packet_time(&packet);
+        let track_id = self.track_mapping[&packet.track.id];
 
         let duration = duration.duration;
 
@@ -161,7 +246,7 @@ impl FragmentedMp4Muxer {
         write_box!(&mut buf, b"moof", {
             write_box!(&mut buf, b"mfhd", {
                 buf.put_u32(0 << 24); // version
-                buf.put_u64(self.seq); // creation_time
+                buf.put_u32(self.seq as u32); // sequence_id
             });
 
             write_box!(&mut buf, b"traf", {
@@ -221,7 +306,6 @@ impl FragmentedMp4Muxer {
             .collect::<Span>();
 
         self.seq += 1;
-        self.prev_times.insert(packet.track.id, packet.time);
 
         Ok(segment)
     }
