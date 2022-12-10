@@ -1,6 +1,4 @@
 [workspace]
 members = [
     "scuffed",
-    "mediabox/mediabox",
-    "mediabox/mediaprobe",
 ]

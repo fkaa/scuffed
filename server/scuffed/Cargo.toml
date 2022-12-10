@@ -16,7 +16,7 @@ log = "0.4.17"
 rml_rtmp = "0.6.1"
 rusqlite = "0.27.0"
 rusqlite_migration = { git = "https://github.com/cljoly/rusqlite_migration" }
-mediabox = { path = "../mediabox/mediabox" }
+mediabox = { git = "https://github.com/fkaa/mediabox", features = ["rtmp"] }
 tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "sync", "net", "io-util"] }
 tokio-rusqlite = "0.1.0"
 serde = { version = "1.0.137", features = ["derive"] }
