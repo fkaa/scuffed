@@ -41,14 +41,19 @@ async function loadAccountPage() {
     accountPage.querySelector("input[name=username]").value = accountInfo.name;
     accountPage.querySelector("input[name=streamKey]").value = accountInfo.streamKey;
     accountPage.querySelector("#generate").onclick = async (e) => {
-        let ok = await generateNewStreamKey();
-        console.log("generateNewStreamKey: " + ok);
-
-        if (ok) {
-            accountInfo = null;
-            document.body.innerHTML = "";
-            loadAccountPage();
+        if (!window.confirm("This will create a new stream key. The previous stream key will not work anymore.")) {
+            return;
         }
+
+        let ok = await generateNewStreamKey();
+        if (!ok) {
+            console.log("Failed to generate new stream key");
+            return;
+        }
+
+        accountInfo = null;
+        document.body.innerHTML = "";
+        loadAccountPage();
     };
     accountPage.querySelector("#copy").onclick = (e) => {
         navigator.clipboard.writeText(accountInfo.streamKey);
