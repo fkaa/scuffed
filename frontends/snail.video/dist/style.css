@@ -133,6 +133,9 @@ a.top {
 .stream-page.connecting .stream-page-center {
     display: block;
 }
+.stream-page.connecting video {
+    filter:grayscale(1) blur(2px);
+}
 
 .label {
     font-size: 18pt;
