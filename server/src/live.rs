@@ -32,7 +32,7 @@ pub fn api_route() -> Router {
 /// the [MSE](https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API) API.
 #[utoipa::path(
     get,
-    path = "/live/{stream}",
+    path = "/api/live/{stream}",
     responses(
         (status = 101, description = "A livestream was found. Switching to the WebSocket protocol"),
         (status = 404, description = "There was no active livestream for the given stream", content_type = "text/plain")

@@ -315,7 +315,7 @@ pub struct LiveStreamInfo {
 /// Gets a list of all public livestreams.
 #[utoipa::path(
     get,
-    path = "/stream",
+    path = "/api/stream",
     responses(
         (status = 200, description = "List all livestreams successfully", body = [LiveStreamInfo]),
     )
@@ -355,7 +355,7 @@ pub async fn get_streams(
 /// This can return previews from offline streams as well.
 #[utoipa::path(
     get,
-    path = "/stream/{stream}/snapshot",
+    path = "/api/stream/{stream}/preview",
     responses(
         (status = 200, description = "Returned preview", content_type = "video/mp4"),
         (status = 404, description = "Did not find any previews for the given stream", content_type = "text/plain")

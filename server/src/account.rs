@@ -38,7 +38,7 @@ pub struct AccountInfo {
 /// Gets account info.
 #[utoipa::path(
     get,
-    path = "/account",
+    path = "/api/account",
     responses(
         (status = 200, description = "Lists account info successfully", body = [AccountInfo]),
         (status = 404, description = "Not signed in")
@@ -73,7 +73,7 @@ pub async fn get_account(
 /// Logs in to the site by redirecting to hiveID.
 #[utoipa::path(
     get,
-    path = "/account/login",
+    path = "/api/account/login",
     responses(
         (status = 302, description = "Redirects to hiveID successfully"),
     )
@@ -109,7 +109,7 @@ async fn get_account_by_username(db: Connection, username: String) -> anyhow::Re
 /// Generates a new stream key.
 #[utoipa::path(
     post,
-    path = "/account/key",
+    path = "/api/account/key",
     responses(
         (status = 200, description = "Succesfully changed stream key.")
     )
