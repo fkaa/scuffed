@@ -13,6 +13,7 @@ use mediabox::{
     Packet,
 };
 use tokio::sync::mpsc::Receiver;
+use tracing::{Instrument, debug_span};
 
 use crate::{stream::LiveStreamService, Error};
 
@@ -53,7 +54,14 @@ pub async fn get_video(
         .ok_or(Error::NotFound)?;
     let (movie, receiver) = splitter.attach().await;
 
-    Ok(ws.on_upgrade(move |socket| websocket_video(socket, movie, receiver)))
+    Ok(ws.on_upgrade(move |socket| {
+        let span = debug_span!(
+            "live",
+            stream = %stream,
+        );
+
+        websocket_video(socket, movie, receiver).instrument(span)
+    }))
 }
 
 async fn websocket_video(socket: WebSocket, movie: Movie, receiver: Receiver<Packet>) {

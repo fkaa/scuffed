@@ -22,6 +22,7 @@ use tokio::sync::{
     RwLock,
 };
 use tokio_rusqlite::Connection;
+use tracing::{debug_span, Instrument};
 use utoipa::ToSchema;
 
 use std::{collections::HashMap, io, sync::Arc};
@@ -39,44 +40,51 @@ async fn handle_rtmp_request(
     svc: LiveStreamService,
     request: RtmpRequest,
 ) -> anyhow::Result<()> {
-    let _app = request.app().to_string();
     let key = request.key().to_string();
 
     let account = get_account_by_stream_key(db, key).await?;
 
-    let mut session = request.authenticate().await?;
+    let span = debug_span!("stream", name = %account.username);
 
-    let tracks = session.streams().await?;
-    let movie = Movie {
-        tracks,
-        attachments: Vec::new(),
-    };
+    let fut = async move {
+        debug!("Got RTMP request from {}", request.addr());
 
-    let (mut splitter, gop) = svc.new_stream(account.username.clone(), movie).await?;
+        let mut session = request.authenticate().await?;
 
-    let mut new_gop = Vec::new();
-    loop {
-        match session.read_frame().await {
-            Ok(pkt) => {
-                if pkt.track.is_video() {
-                    if pkt.key {
-                        let mut gop = gop.write().await;
-                        *gop = new_gop.clone();
-                        new_gop.clear();
+        let tracks = session.streams().await?;
+        let movie = Movie {
+            tracks,
+            attachments: Vec::new(),
+        };
+
+        let (mut splitter, gop) = svc.new_stream(account.username.clone(), movie).await?;
+
+        let mut new_gop = Vec::new();
+        loop {
+            match session.read_frame().await {
+                Ok(pkt) => {
+                    if pkt.track.is_video() {
+                        if pkt.key {
+                            let mut gop = gop.write().await;
+                            *gop = new_gop.clone();
+                            new_gop.clear();
+                        }
+                        new_gop.push(pkt.clone());
                     }
-                    new_gop.push(pkt.clone());
+
+                    splitter.write_packet(pkt).await
                 }
+                Err(e) => {
+                    warn!("Encountered error while ingesting stream: {e:?}");
+                    svc.stop_stream(account.username).await;
 
-                splitter.write_packet(pkt).await
-            }
-            Err(e) => {
-                warn!("Encountered error while ingesting stream: {e:?}");
-                svc.stop_stream(account.username).await;
-
-                return Err(e);
+                    return Err(e);
+                }
             }
         }
-    }
+    };
+
+    fut.instrument(span).await
 }
 
 struct Account {
@@ -110,13 +118,15 @@ pub async fn listen(db: Connection, svc: LiveStreamService) -> anyhow::Result<()
         let db = db.clone();
         let svc = svc.clone();
 
-        tokio::spawn(async {
-            debug!("Got RTMP request from {}", request.addr());
-
+        let future = async move {
             if let Err(e) = handle_rtmp_request(db, svc, request).await {
                 error!("{}", e);
             }
-        });
+        };
+
+        tokio::spawn(future.instrument(debug_span!(
+            "ingest",
+        )));
     }
 }
 
