@@ -20,6 +20,7 @@ mod account;
 mod error;
 mod live;
 mod stream;
+mod logging;
 
 pub use error::Error;
 use utoipa::OpenApi;
@@ -176,7 +177,7 @@ async fn run() {
         });
     }
 
-    let router = api_route(conn, svc).await;
+    let router = logging::tracing_layer(api_route(conn, svc).await);
 
     axum::Server::try_bind(&bind_addr)
         .expect("Failed to bind server")
@@ -191,7 +192,7 @@ async fn handle_error(_err: std::io::Error) -> impl IntoResponse {
 
 fn main() {
     dotenv::dotenv().ok();
-    env_logger::init();
+    logging::init();
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
