@@ -69,8 +69,8 @@ pub async fn api_route(
     svc: stream::LiveStreamService,
     web_keys: Option<WebPushKeys>,
 ) -> Router {
-    let secret_key = SecretKey::from_env();
-    let variables = Variables::from_env();
+    let secret_key = SecretKey::from_env().unwrap();
+    let variables = Variables::from_env().unwrap();
 
     let client = IdpClient::default();
 
