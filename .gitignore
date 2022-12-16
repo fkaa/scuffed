@@ -5,4 +5,5 @@ tags
 .env
 .bacon-locations
 *.db
+*.pem
 .DS_Store

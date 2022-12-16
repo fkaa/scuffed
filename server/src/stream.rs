@@ -27,7 +27,10 @@ use utoipa::ToSchema;
 
 use std::{collections::HashMap, io, sync::Arc};
 
-use crate::Error;
+use crate::{
+    notification::{self, WebPushKeys},
+    Error,
+};
 
 pub fn api_route() -> Router {
     Router::new()
@@ -38,11 +41,12 @@ pub fn api_route() -> Router {
 async fn handle_rtmp_request(
     db: Connection,
     svc: LiveStreamService,
+    keys: Option<WebPushKeys>,
     request: RtmpRequest,
 ) -> anyhow::Result<()> {
     let key = request.key().to_string();
 
-    let account = get_account_by_stream_key(db, key).await?;
+    let account = get_account_by_stream_key(&db, key).await?;
 
     let span = debug_span!("stream", name = %account.username);
 
@@ -58,6 +62,21 @@ async fn handle_rtmp_request(
         };
 
         let (mut splitter, gop) = svc.new_stream(account.username.clone(), movie).await?;
+
+        if let Some(keys) = keys {
+            let db = db.clone();
+            let keys = keys.clone();
+            let username = account.username.clone();
+            tokio::spawn(async move {
+                if let Err(e) = notification::on_stream_started(
+                    db,
+                    keys,
+                    username,
+                ).await {
+                    error!("Failed to send stream started notifications: {e:?}");
+                }
+            });
+        }
 
         let mut new_gop = Vec::new();
         loop {
@@ -92,7 +111,7 @@ struct Account {
     stream_key: String,
 }
 
-async fn get_account_by_stream_key(db: Connection, key: String) -> anyhow::Result<Account> {
+async fn get_account_by_stream_key(db: &Connection, key: String) -> anyhow::Result<Account> {
     db.call(move |conn| {
         conn.query_row(
             "SELECT username, stream_key FROM users WHERE stream_key = ?1",
@@ -109,7 +128,11 @@ async fn get_account_by_stream_key(db: Connection, key: String) -> anyhow::Resul
     .await
 }
 
-pub async fn listen(db: Connection, svc: LiveStreamService) -> anyhow::Result<()> {
+pub async fn listen(
+    db: Connection,
+    keys: Option<WebPushKeys>,
+    svc: LiveStreamService,
+) -> anyhow::Result<()> {
     let mut listener = RtmpListener::bind("127.0.0.1:1935").await?;
 
     loop {
@@ -117,16 +140,15 @@ pub async fn listen(db: Connection, svc: LiveStreamService) -> anyhow::Result<()
 
         let db = db.clone();
         let svc = svc.clone();
+        let keys = keys.clone();
 
         let future = async move {
-            if let Err(e) = handle_rtmp_request(db, svc, request).await {
+            if let Err(e) = handle_rtmp_request(db, svc, keys, request).await {
                 error!("{}", e);
             }
         };
 
-        tokio::spawn(future.instrument(debug_span!(
-            "ingest",
-        )));
+        tokio::spawn(future.instrument(debug_span!("ingest",)));
     }
 }
 

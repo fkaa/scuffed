@@ -1,8 +1,12 @@
 let accountInfo;
 let activeStream;
+let notificationsEnabled;
+
+navigator.serviceWorker.register("/sw.js");
 
 window.onload = async function(e) {
     accountInfo = await getAccountInfo();
+    notificationsEnabled = await getNotificationsEnabled();
     await fragmentChanged();
 }
 window.onhashchange = async function(e) {
@@ -154,6 +158,25 @@ async function loadAccountPage() {
         navigator.clipboard.writeText(accountInfo.streamKey);
         console.log("Copied stream key to clipboard");
     };
+
+    let notificationButton = accountPage.querySelector("#toggleNotification");
+
+    if (notificationsEnabled) {
+        notificationButton.innerText = "disable notifications";
+    } else {
+        notificationButton.innerText = "enable notifications";
+    }
+    notificationButton.onclick = async (e) => {
+        if (notificationsEnabled) {
+            await disableNotifications();
+        } else {
+            await enableNotifications();
+        }
+
+        notificationsEnabled = await getNotificationsEnabled();
+        document.body.innerHTML = "";
+        loadAccountPage();
+    };
     document.body.appendChild(accountPage);
 }
 
@@ -217,6 +240,16 @@ async function getAccountInfo() {
     });
 }
 
+async function getNotificationsEnabled() {
+    return await fetch('/api/notification/').then((response) => {
+        if (!response.ok) {
+            return false;
+        }
+
+        return true;
+    });
+}
+
 async function getStreams() {
     return await fetch('/api/stream/').then((response) => response.json());
 }
@@ -235,6 +268,46 @@ async function login() {
         credentials: "same-origin",
     });
 }
+
+async function enableNotifications() {
+    console.log("Enabling notifications");
+
+    let registration = await navigator.serviceWorker.ready;
+
+    let response = await fetch("/api/notification/key");
+    let publicKey = await response.text();
+
+    let key = Uint8Array.from(atob(publicKey), c => c.charCodeAt(0));
+    let options = {
+        userVisibleOnly: true,
+        applicationServerKey: key.buffer,
+    };
+    let subscription = await registration.pushManager.subscribe(options);
+
+    console.log(subscription.subscriptionId);
+    console.log(subscription.endpoint);
+
+    console.log("Registering notification with server");
+
+    await fetch('/api/notification/', {
+        method: "post",
+        redirect: "follow",
+        credentials: "same-origin",
+        headers: {
+          'Content-type': 'application/json'
+        },
+        body: JSON.stringify(subscription),
+    });
+}
+
+async function disableNotifications() {
+    await fetch('/api/notification/', {
+        method: "delete",
+        redirect: "follow",
+        credentials: "same-origin",
+    });
+}
+
 
 function getTimeAgo(date) {
     const MINUTE = 60;

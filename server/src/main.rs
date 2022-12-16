@@ -19,12 +19,15 @@ use rusqlite_migration::{Migrations, M};
 mod account;
 mod error;
 mod live;
-mod stream;
 mod logging;
+mod notification;
+mod stream;
 
 pub use error::Error;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+use crate::notification::WebPushKeys;
 
 pub type Connection = tokio_rusqlite::Connection;
 
@@ -61,7 +64,11 @@ async fn create_account_if_missing(db: Connection, name: String) -> anyhow::Resu
     Ok(())
 }
 
-pub async fn api_route(db: tokio_rusqlite::Connection, svc: stream::LiveStreamService) -> Router {
+pub async fn api_route(
+    db: tokio_rusqlite::Connection,
+    svc: stream::LiveStreamService,
+    web_keys: Option<WebPushKeys>,
+) -> Router {
     let secret_key = SecretKey::from_env();
     let variables = Variables::from_env();
 
@@ -75,7 +82,11 @@ pub async fn api_route(db: tokio_rusqlite::Connection, svc: stream::LiveStreamSe
             live::get_video,
             account::get_account,
             account::get_login,
-            account::post_generate_stream_key
+            account::post_generate_stream_key,
+            notification::get_public_key,
+            notification::get_notification_settings,
+            notification::post_notification_subscription,
+            notification::delete_notification_subscription,
         ),
         components(schemas(stream::LiveStreamInfo, account::AccountInfo))
     )]
@@ -88,6 +99,7 @@ pub async fn api_route(db: tokio_rusqlite::Connection, svc: stream::LiveStreamSe
         .nest("/api/stream/", stream::api_route())
         .nest("/api/live/", live::api_route())
         .nest("/api/account/", account::api_route())
+        .nest("/api/notification/", notification::api_route())
         .nest(
             "/auth",
             idlib::api_route(
@@ -110,6 +122,7 @@ pub async fn api_route(db: tokio_rusqlite::Connection, svc: stream::LiveStreamSe
         .layer(Extension(db))
         .layer(Extension(svc))
         .layer(Extension(secret_key))
+        .layer(Extension(Arc::new(web_keys)))
         .layer(Extension(Arc::new(variables)));
 
     router
@@ -145,6 +158,8 @@ async fn get_stream_key(db: Connection, name: String) -> anyhow::Result<String> 
 async fn run() {
     let db_path: PathBuf = env::var("DB_PATH").expect("DB_PATH not set").into();
 
+    let web_push_keys = WebPushKeys::from_env();
+
     let bind_addr: SocketAddr = env::var("BIND_ADDRESS")
         .expect("BIND_ADDRESS not set")
         .parse()
@@ -170,14 +185,15 @@ async fn run() {
     {
         let db = conn.clone();
         let svc = svc.clone();
+        let keys = web_push_keys.clone();
         tokio::spawn(async {
-            if let Err(e) = stream::listen(db, svc).await {
+            if let Err(e) = stream::listen(db, keys, svc).await {
                 error!("{}", e);
             }
         });
     }
 
-    let router = logging::tracing_layer(api_route(conn, svc).await);
+    let router = logging::tracing_layer(api_route(conn, svc, web_push_keys).await);
 
     axum::Server::try_bind(&bind_addr)
         .expect("Failed to bind server")
