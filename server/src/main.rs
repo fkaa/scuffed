@@ -160,12 +160,17 @@ async fn run() {
 
     let web_push_keys = WebPushKeys::from_env();
 
-    let bind_addr: SocketAddr = env::var("BIND_ADDRESS")
-        .expect("BIND_ADDRESS not set")
+    let rtmp_bind_addr: SocketAddr = env::var("RTMP_BIND_ADDRESS")
+        .expect("RTMP_ADDRESS not set")
         .parse()
-        .expect("BIND_ADDRESS could not be parsed");
+        .expect("RTMP_ADDRESS could not be parsed");
+    let http_bind_addr: SocketAddr = env::var("HTTP_BIND_ADDRESS")
+        .expect("HTTP_BIND_ADDRESS not set")
+        .parse()
+        .expect("HTTP_BIND_ADDRESS could not be parsed");
 
-    info!("Listening on {bind_addr:?}");
+    info!("Listening for RTMP requests on {rtmp_bind_addr:?}");
+    info!("Listening for HTTP requests on {http_bind_addr:?}");
 
     let conn = tokio_rusqlite::Connection::open(&db_path)
         .await
@@ -186,8 +191,8 @@ async fn run() {
         let db = conn.clone();
         let svc = svc.clone();
         let keys = web_push_keys.clone();
-        tokio::spawn(async {
-            if let Err(e) = stream::listen(db, keys, svc).await {
+        tokio::spawn(async move {
+            if let Err(e) = stream::listen(db, keys, svc, rtmp_bind_addr).await {
                 error!("{}", e);
             }
         });
@@ -195,7 +200,7 @@ async fn run() {
 
     let router = logging::tracing_layer(api_route(conn, svc, web_push_keys).await);
 
-    axum::Server::try_bind(&bind_addr)
+    axum::Server::try_bind(&http_bind_addr)
         .expect("Failed to bind server")
         .serve(router.into_make_service())
         .await

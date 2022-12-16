@@ -25,7 +25,7 @@ use tokio_rusqlite::Connection;
 use tracing::{debug_span, Instrument};
 use utoipa::ToSchema;
 
-use std::{collections::HashMap, io, sync::Arc};
+use std::{collections::HashMap, io, sync::Arc, net::SocketAddr};
 
 use crate::{
     notification::{self, WebPushKeys},
@@ -132,8 +132,9 @@ pub async fn listen(
     db: Connection,
     keys: Option<WebPushKeys>,
     svc: LiveStreamService,
+    bind_addr: SocketAddr,
 ) -> anyhow::Result<()> {
-    let mut listener = RtmpListener::bind("127.0.0.1:1935").await?;
+    let mut listener = RtmpListener::bind(bind_addr).await?;
 
     loop {
         let request = listener.accept().await?;

@@ -1,4 +1,4 @@
-use std::{env, io::Cursor, path::PathBuf, sync::Arc};
+use std::{env, sync::Arc};
 
 use crate::{Connection, Error};
 
@@ -13,7 +13,6 @@ use idlib::{AuthorizeCookie, NoGroups};
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use time::OffsetDateTime;
-use tokio::fs;
 use tracing::debug;
 use web_push::{
     ContentEncoding, SubscriptionInfo, SubscriptionKeys, VapidSignatureBuilder, WebPushClient,
