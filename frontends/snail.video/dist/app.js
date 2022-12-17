@@ -6,7 +6,10 @@ navigator.serviceWorker.register("/sw.js");
 
 window.onload = async function(e) {
     accountInfo = await getAccountInfo();
-    notificationsEnabled = await getNotificationsEnabled();
+    if (accountInfo != null) {
+        notificationsEnabled = await getNotificationsEnabled();
+    }
+
     await fragmentChanged();
 }
 window.onhashchange = async function(e) {
