@@ -1180,7 +1180,7 @@ dependencies = [
 [[package]]
 name = "idlib"
 version = "0.1.0"
-source = "git+https://github.com/Mavulp/hiveID#70fe127a0b3f93a40c6808592aef93c90acaf04b"
+source = "git+https://github.com/Mavulp/hiveID#31d71fdbc8b0b2af76f2577cbe74fd5696f6ba88"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1191,7 +1191,6 @@ dependencies = [
  "futures",
  "hmac 0.12.1",
  "jwt",
- "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -1199,6 +1198,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tower-http",
+ "tracing",
  "url",
  "urlencoding",
 ]
