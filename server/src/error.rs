@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use log::error;
+use tracing::error;
 use serde_json::json;
 use thiserror::Error;
 

@@ -12,7 +12,7 @@ use axum::{http::StatusCode, response::IntoResponse, Extension, Router};
 use futures::FutureExt;
 use idlib::{AuthCallback, IdpClient, SecretKey, Variables};
 
-use log::*;
+use tracing::*;
 use rusqlite::{params, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 

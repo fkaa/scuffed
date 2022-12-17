@@ -2213,7 +2213,6 @@ dependencies = [
  "hyper",
  "idlib",
  "jwt",
- "log",
  "mediabox",
  "rand",
  "rusqlite",

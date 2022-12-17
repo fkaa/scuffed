@@ -5,7 +5,7 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::stream::{self, Stream};
-use log::*;
+use tracing::*;
 use mediabox::{
     format::{
         mp4::FragmentedMp4Muxer,

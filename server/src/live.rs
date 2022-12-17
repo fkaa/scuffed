@@ -7,7 +7,7 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-use log::*;
+use tracing::*;
 use mediabox::{
     format::{mp4::FragmentedMp4Muxer, Movie},
     Packet,
